@@ -1,7 +1,7 @@
 
 from fastapi import FastAPI, HTTPException
 
-from database import testar_conexao
+from app.database import testar_conexao
 
 app = FastAPI(
     title="API Futura Imóveis",
