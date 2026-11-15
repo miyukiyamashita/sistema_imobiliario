@@ -41,15 +41,4 @@ def consultar_meu_perfil(
     return usuario_atual
 
 
-@router.get("/teste-proprietario")
-def testar_acesso_proprietario(
-    usuario_atual: Usuario = Depends(
-        exigir_perfis(PerfilUsuario.PROPRIETARIO)
-    )
-):
-    return {
-        "mensagem": "Acesso autorizado para proprietário.",
-        "usuario": usuario_atual.nome,
-        "perfil": usuario_atual.perfil.value
-    }
 
