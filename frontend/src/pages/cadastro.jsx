@@ -1,8 +1,9 @@
 
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { apiRequest } from "../services/api";
 
-function Cadastro({ onVoltar }) {
+function Cadastro() {
   const [formulario, setFormulario] = useState({
     nome: "",
     email: "",
@@ -126,9 +127,7 @@ function Cadastro({ onVoltar }) {
 
       <p role="status">{mensagem}</p>
 
-      <button type="button" onClick={onVoltar}>
-        Voltar para o login
-      </button>
+      <Link to="/login">Voltar para o login</Link>
     </main>
   );
 }

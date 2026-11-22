@@ -1,8 +1,12 @@
 
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { apiRequest } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
-function Login({ onLogin, onCadastro }) {
+function Login() {
+  const { entrar } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -19,7 +23,8 @@ function Login({ onLogin, onCadastro }) {
         body: JSON.stringify({ email, senha }),
       });
 
-      await onLogin(resposta.access_token);
+      await entrar(resposta.access_token);
+      navigate("/dashboard", { replace: true });
     } catch (erro) {
       setMensagem(erro.message);
     } finally {
@@ -62,9 +67,7 @@ function Login({ onLogin, onCadastro }) {
 
       <p>Ainda não possui uma conta?</p>
 
-      <button type="button" onClick={onCadastro}>
-        Criar conta
-      </button>
+      <Link to="/cadastro">Criar conta</Link>
 
       <p role="alert">{mensagem}</p>
     </main>

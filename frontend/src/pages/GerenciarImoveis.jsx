@@ -1,8 +1,12 @@
 
 import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { apiRequest } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
-function GerenciarImoveis({ token, onVoltar, onCadastrar, onEditar, }) {
+function GerenciarImoveis() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
   const [imoveis, setImoveis] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -45,13 +49,11 @@ function GerenciarImoveis({ token, onVoltar, onCadastrar, onEditar, }) {
         Consulte os imóveis cadastrados no sistema.
       </p>
 
-      <button onClick={onVoltar}>
-        Voltar ao painel
-      </button>
+      <Link to="/dashboard">Voltar ao painel</Link>
 
-      <button onClick={onCadastrar}>
+      <Link to="/imoveis/novo">
         Cadastrar novo imóvel
-        </button>
+      </Link>
 
       <button
         onClick={carregarImoveis}
@@ -114,7 +116,7 @@ function GerenciarImoveis({ token, onVoltar, onCadastrar, onEditar, }) {
 
                   <td>
                     <button
-                      onClick={() => onEditar(imovel)}
+                      onClick={() => navigate(`/imoveis/${imovel.id}/editar`)}
                     >
                       Editar
                     </button>

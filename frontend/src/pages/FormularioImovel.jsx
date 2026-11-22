@@ -1,6 +1,8 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const dadosIniciais = {
   proprietario_id: "",
@@ -48,11 +50,12 @@ function prepararDadosFormulario(imovel) {
   return dados;
 }
 
-function FormularioImovel({
-  token,
-  onVoltar,
-  imovel = null,
-}) {
+function FormularioImovel() {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const [imovel, setImovel] = useState(null);
+  const [carregandoImovel, setCarregandoImovel] = useState(Boolean(id));
   const modoEdicao = imovel !== null;
 
   const [formulario, setFormulario] = useState(() =>
@@ -62,6 +65,24 @@ function FormularioImovel({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const [sucesso, setSucesso] = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+
+    async function carregarImovel() {
+      try {
+        const dados = await apiRequest(`/imoveis/${id}`, {}, token);
+        setImovel(dados);
+        setFormulario(prepararDadosFormulario(dados));
+      } catch (error) {
+        setErro(error.message);
+      } finally {
+        setCarregandoImovel(false);
+      }
+    }
+
+    carregarImovel();
+  }, [id, token]);
 
   function alterarCampo(event) {
     const { name, value } = event.target;
@@ -161,7 +182,7 @@ function FormularioImovel({
         );
 
         // Retornar à listagem após a edição.
-        onVoltar();
+        navigate("/imoveis");
       } else {
         setSucesso(
           `Imóvel #${resultado.id} cadastrado com sucesso!`
@@ -178,6 +199,14 @@ function FormularioImovel({
 
   return (
     <main>
+      {carregandoImovel && <p>Carregando imóvel...</p>}
+
+      {!carregandoImovel && id && !imovel && erro && (
+        <>
+          <p role="alert" style={{ color: "red" }}>Erro: {erro}</p>
+          <Link to="/imoveis">Voltar à listagem</Link>
+        </>
+      )}
       <h1>
         {modoEdicao
           ? `Editar Imóvel #${imovel.id}`
@@ -202,7 +231,7 @@ function FormularioImovel({
         </p>
       )}
 
-      <form onSubmit={salvarImovel}>
+      {!carregandoImovel && (!id || imovel) && <form onSubmit={salvarImovel}>
         <fieldset disabled={salvando}>
           <legend>Identificação</legend>
 
@@ -393,12 +422,14 @@ function FormularioImovel({
 
         <button
           type="button"
-          onClick={onVoltar}
+          onClick={() => navigate("/imoveis")}
           disabled={salvando}
         >
           Voltar à listagem
         </button>
-      </form>
+      </form>}
+
+      {!carregandoImovel && (!id || imovel) && <Link to="/imoveis">Voltar à listagem</Link>}
     </main>
   );
 }

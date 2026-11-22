@@ -1,5 +1,9 @@
 
-function Dashboard({ usuario, onSair, onGerenciarImoveis }) {
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+function Dashboard() {
+  const { usuario, sair } = useAuth();
   const funcionalidades = {
     CLIENTE: [
       "Consultar imóveis",
@@ -41,9 +45,9 @@ function Dashboard({ usuario, onSair, onGerenciarImoveis }) {
         {opcoes.map((opcao) => (
           <li key={opcao}>
             {opcao === "Gerenciar imóveis" ? (
-              <button onClick={onGerenciarImoveis}>
+              <Link to="/imoveis">
                 {opcao}
-              </button>
+              </Link>
             ) : (
               opcao
             )}
@@ -51,7 +55,7 @@ function Dashboard({ usuario, onSair, onGerenciarImoveis }) {
         ))}
       </ul>
 
-      <button onClick={onSair}>
+      <button onClick={sair}>
         Sair da conta
       </button>
     </main>
