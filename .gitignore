@@ -17,3 +17,7 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Fotografias enviadas pelos usuários
+backend/uploads/*
+!backend/uploads/.gitkeep

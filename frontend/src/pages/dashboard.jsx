@@ -1,5 +1,5 @@
 
-function Dashboard({ usuario, onSair }) {
+function Dashboard({ usuario, onSair, onGerenciarImoveis }) {
   const funcionalidades = {
     CLIENTE: [
       "Consultar imóveis",
@@ -39,7 +39,15 @@ function Dashboard({ usuario, onSair }) {
 
       <ul>
         {opcoes.map((opcao) => (
-          <li key={opcao}>{opcao}</li>
+          <li key={opcao}>
+            {opcao === "Gerenciar imóveis" ? (
+              <button onClick={onGerenciarImoveis}>
+                {opcao}
+              </button>
+            ) : (
+              opcao
+            )}
+          </li>
         ))}
       </ul>
 
