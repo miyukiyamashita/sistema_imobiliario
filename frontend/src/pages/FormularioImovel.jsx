@@ -1,436 +1,95 @@
-
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../components/ui/ToastProvider";
+import Button from "../components/ui/Button";
+import Input from "../components/ui/Input";
+import LoadingSpinner from "../components/ui/LoadingSpinner";
 
-const dadosIniciais = {
-  proprietario_id: "",
-  tipo: "",
-  finalidade: "VENDA",
-  logradouro: "",
-  numero: "",
-  complemento: "",
-  bairro: "",
-  cidade: "",
-  estado: "",
-  cep: "",
-  area: "",
-  valor: "",
-  quartos: "0",
-  banheiros: "0",
-  vagas_garagem: "0",
-  descricao: "",
-};
-
-const camposNumericos = [
-  "proprietario_id",
-  "area",
-  "valor",
-  "quartos",
-  "banheiros",
-  "vagas_garagem",
-];
+const dadosIniciais = { proprietario_id: "", tipo: "", finalidade: "VENDA", logradouro: "", numero: "", complemento: "", bairro: "", cidade: "", estado: "", cep: "", area: "", valor: "", quartos: "0", banheiros: "0", vagas_garagem: "0", descricao: "" };
+const camposNumericos = ["proprietario_id", "area", "valor", "quartos", "banheiros", "vagas_garagem"];
 
 function prepararDadosFormulario(imovel) {
-  if (!imovel) {
-    return { ...dadosIniciais };
-  }
-
+  if (!imovel) return { ...dadosIniciais };
   const dados = {};
-
-  for (const campo of Object.keys(dadosIniciais)) {
-    dados[campo] = String(imovel[campo] ?? "");
-  }
-
+  for (const campo of Object.keys(dadosIniciais)) dados[campo] = String(imovel[campo] ?? "");
   dados.finalidade = imovel.finalidade;
-  dados.complemento = imovel.complemento ?? "";
-  dados.descricao = imovel.descricao ?? "";
-
   return dados;
 }
 
 function FormularioImovel() {
   const { token } = useAuth();
+  const { success, error: notificarErro } = useToast();
   const navigate = useNavigate();
   const { id } = useParams();
+  const modoEdicao = Boolean(id);
   const [imovel, setImovel] = useState(null);
-  const [carregandoImovel, setCarregandoImovel] = useState(Boolean(id));
-  const modoEdicao = imovel !== null;
-
-  const [formulario, setFormulario] = useState(() =>
-    prepararDadosFormulario(imovel)
-  );
-
+  const [formulario, setFormulario] = useState(() => prepararDadosFormulario(null));
+  const [carregandoImovel, setCarregandoImovel] = useState(modoEdicao);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
-  const [sucesso, setSucesso] = useState("");
 
   useEffect(() => {
     if (!id) return;
-
     async function carregarImovel() {
       try {
         const dados = await apiRequest(`/imoveis/${id}`, {}, token);
         setImovel(dados);
         setFormulario(prepararDadosFormulario(dados));
-      } catch (error) {
-        setErro(error.message);
+      } catch (requestError) {
+        setErro(requestError.message);
       } finally {
         setCarregandoImovel(false);
       }
     }
-
     carregarImovel();
   }, [id, token]);
 
   function alterarCampo(event) {
     const { name, value } = event.target;
-
-    setFormulario((anterior) => ({
-      ...anterior,
-      [name]: value,
-    }));
+    setFormulario((anterior) => ({ ...anterior, [name]: value }));
   }
 
   async function salvarImovel(event) {
     event.preventDefault();
-
     setErro("");
-    setSucesso("");
     setSalvando(true);
-
     try {
-      const dados = {
-        ...formulario,
-
-        proprietario_id: Number(
-          formulario.proprietario_id
-        ),
-
-        area: Number(formulario.area),
-        valor: Number(formulario.valor),
-
-        quartos: Number(formulario.quartos),
-        banheiros: Number(formulario.banheiros),
-
-        vagas_garagem: Number(
-          formulario.vagas_garagem
-        ),
-
-        estado: formulario.estado.trim().toUpperCase(),
-
-        complemento:
-          formulario.complemento.trim() || null,
-
-        descricao:
-          formulario.descricao.trim() || null,
-      };
-
-      const endpoint = modoEdicao
-        ? `/imoveis/${imovel.id}`
-        : "/imoveis";
-
-      const metodo = modoEdicao
-        ? "PATCH"
-        : "POST";
-
-      // Na edição, enviar somente os campos alterados.
-      const dadosEnvio = modoEdicao
-        ? Object.fromEntries(
-            Object.entries(dados).filter(
-              ([campo, valor]) => {
-                const valorOriginal = imovel[campo];
-
-                if (camposNumericos.includes(campo)) {
-                  return (
-                    Number(valor) !== Number(valorOriginal)
-                  );
-                }
-
-                return (
-                  String(valor ?? "") !==
-                  String(valorOriginal ?? "")
-                );
-              }
-            )
-          )
-        : dados;
-
-      if (
-        modoEdicao &&
-        Object.keys(dadosEnvio).length === 0
-      ) {
-        setSucesso(
-          "Nenhuma alteração foi realizada."
-        );
+      const dados = { ...formulario, proprietario_id: Number(formulario.proprietario_id), area: Number(formulario.area), valor: Number(formulario.valor), quartos: Number(formulario.quartos), banheiros: Number(formulario.banheiros), vagas_garagem: Number(formulario.vagas_garagem), estado: formulario.estado.trim().toUpperCase(), complemento: formulario.complemento.trim() || null, descricao: formulario.descricao.trim() || null };
+      const dadosEnvio = modoEdicao ? Object.fromEntries(Object.entries(dados).filter(([campo, valor]) => camposNumericos.includes(campo) ? Number(valor) !== Number(imovel[campo]) : String(valor ?? "") !== String(imovel[campo] ?? ""))) : dados;
+      if (modoEdicao && Object.keys(dadosEnvio).length === 0) {
+        success("Nenhuma alteração foi realizada.");
         return;
       }
-
-      const resultado = await apiRequest(
-        endpoint,
-        {
-          method: metodo,
-          body: JSON.stringify(dadosEnvio),
-        },
-        token
-      );
-
-      if (modoEdicao) {
-        setSucesso(
-          `Imóvel #${resultado.id} atualizado com sucesso!`
-        );
-
-        // Retornar à listagem após a edição.
-        navigate("/imoveis");
-      } else {
-        setSucesso(
-          `Imóvel #${resultado.id} cadastrado com sucesso!`
-        );
-
-        setFormulario({ ...dadosIniciais });
-      }
-    } catch (error) {
-      setErro(error.message);
+      const endpoint = modoEdicao ? `/imoveis/${id}` : "/imoveis";
+      const resultado = await apiRequest(endpoint, { method: modoEdicao ? "PATCH" : "POST", body: JSON.stringify(dadosEnvio) }, token);
+      success(modoEdicao ? `Imóvel #${resultado.id} atualizado com sucesso.` : `Imóvel #${resultado.id} cadastrado com sucesso.`);
+      if (modoEdicao) navigate("/imoveis");
+      else setFormulario({ ...dadosIniciais });
+    } catch (requestError) {
+      setErro(requestError.message);
+      notificarErro(requestError.message);
     } finally {
       setSalvando(false);
     }
   }
 
+  if (carregandoImovel) return <div className="card form-card"><LoadingSpinner label="Carregando imóvel..." /></div>;
+  if (modoEdicao && !imovel) return <div className="card empty-state"><h3>Não foi possível carregar este imóvel</h3><p>{erro}</p><Link to="/imoveis">Voltar à listagem</Link></div>;
+
   return (
-    <main>
-      {carregandoImovel && <p>Carregando imóvel...</p>}
-
-      {!carregandoImovel && id && !imovel && erro && (
-        <>
-          <p role="alert" style={{ color: "red" }}>Erro: {erro}</p>
-          <Link to="/imoveis">Voltar à listagem</Link>
-        </>
-      )}
-      <h1>
-        {modoEdicao
-          ? `Editar Imóvel #${imovel.id}`
-          : "Cadastrar Imóvel"}
-      </h1>
-
-      <p>
-        {modoEdicao
-          ? "Altere os dados do imóvel e salve as modificações."
-          : "Preencha os dados abaixo para cadastrar um novo imóvel."}
-      </p>
-
-      {erro && (
-        <p role="alert" style={{ color: "red" }}>
-          Erro: {erro}
-        </p>
-      )}
-
-      {sucesso && (
-        <p role="status" style={{ color: "green" }}>
-          {sucesso}
-        </p>
-      )}
-
-      {!carregandoImovel && (!id || imovel) && <form onSubmit={salvarImovel}>
-        <fieldset disabled={salvando}>
-          <legend>Identificação</legend>
-
-          <div>
-            <label htmlFor="proprietario_id">
-              ID do proprietário
-            </label>
-
-            <input
-              id="proprietario_id"
-              name="proprietario_id"
-              type="number"
-              min="1"
-              step="1"
-              required
-              value={formulario.proprietario_id}
-              onChange={alterarCampo}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="tipo">
-              Tipo de imóvel
-            </label>
-
-            <input
-              id="tipo"
-              name="tipo"
-              type="text"
-              minLength={2}
-              maxLength={50}
-              required
-              value={formulario.tipo}
-              onChange={alterarCampo}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="finalidade">
-              Finalidade
-            </label>
-
-            <select
-              id="finalidade"
-              name="finalidade"
-              value={formulario.finalidade}
-              onChange={alterarCampo}
-            >
-              <option value="VENDA">
-                Venda
-              </option>
-
-              <option value="LOCACAO">
-                Locação
-              </option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="valor">
-              Valor (R$)
-            </label>
-
-            <input
-              id="valor"
-              name="valor"
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              value={formulario.valor}
-              onChange={alterarCampo}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="area">
-              Área (m²)
-            </label>
-
-            <input
-              id="area"
-              name="area"
-              type="number"
-              min="0.01"
-              step="0.01"
-              required
-              value={formulario.area}
-              onChange={alterarCampo}
-            />
-          </div>
-        </fieldset>
-
-        <fieldset disabled={salvando}>
-          <legend>Endereço</legend>
-
-          {[
-            ["logradouro", "Logradouro"],
-            ["numero", "Número"],
-            ["complemento", "Complemento"],
-            ["bairro", "Bairro"],
-            ["cidade", "Cidade"],
-            ["estado", "Estado (UF)"],
-            ["cep", "CEP"],
-          ].map(([campo, rotulo]) => (
-            <div key={campo}>
-              <label htmlFor={campo}>
-                {rotulo}
-              </label>
-
-              <input
-                id={campo}
-                name={campo}
-                type="text"
-                value={formulario[campo]}
-                onChange={alterarCampo}
-                required={campo !== "complemento"}
-                minLength={
-                  campo === "logradouro" ? 3 :
-                  campo === "bairro" ||
-                  campo === "cidade" ? 2 :
-                  undefined
-                }
-                maxLength={
-                  campo === "estado" ? 2 :
-                  campo === "numero" ? 20 :
-                  campo === "complemento" ? 100 :
-                  campo === "logradouro" ? 200 :
-                  campo === "bairro" ||
-                  campo === "cidade" ? 100 :
-                  undefined
-                }
-              />
-            </div>
-          ))}
-        </fieldset>
-
-        <fieldset disabled={salvando}>
-          <legend>Características</legend>
-
-          {[
-            ["quartos", "Quartos"],
-            ["banheiros", "Banheiros"],
-            ["vagas_garagem", "Vagas de garagem"],
-          ].map(([campo, rotulo]) => (
-            <div key={campo}>
-              <label htmlFor={campo}>
-                {rotulo}
-              </label>
-
-              <input
-                id={campo}
-                name={campo}
-                type="number"
-                min="0"
-                step="1"
-                required
-                value={formulario[campo]}
-                onChange={alterarCampo}
-              />
-            </div>
-          ))}
-
-          <div>
-            <label htmlFor="descricao">
-              Descrição
-            </label>
-
-            <textarea
-              id="descricao"
-              name="descricao"
-              value={formulario.descricao}
-              onChange={alterarCampo}
-            />
-          </div>
-        </fieldset>
-
-        <button
-          type="submit"
-          disabled={salvando}
-        >
-          {salvando
-            ? "Salvando..."
-            : modoEdicao
-              ? "Salvar alterações"
-              : "Cadastrar imóvel"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => navigate("/imoveis")}
-          disabled={salvando}
-        >
-          Voltar à listagem
-        </button>
-      </form>}
-
-      {!carregandoImovel && (!id || imovel) && <Link to="/imoveis">Voltar à listagem</Link>}
-    </main>
+    <div>
+      <div className="page-intro"><div><p className="eyebrow">{modoEdicao ? `IMÓVEL #${id}` : "NOVO CADASTRO"}</p><h2>{modoEdicao ? "Editar imóvel" : "Cadastrar imóvel"}</h2><p>{modoEdicao ? "Atualize os dados e salve as alterações." : "Preencha os dados para adicionar um imóvel à sua carteira."}</p></div><Link to="/imoveis" className="button button-secondary button-md">Cancelar</Link></div>
+      <form className="card form-card" onSubmit={salvarImovel}>
+        {erro && <p className="inline-message inline-error" role="alert">{erro}</p>}
+        <fieldset className="form-section" disabled={salvando}><legend>Informações do imóvel</legend><div className="form-grid"><Input label="ID do proprietário" name="proprietario_id" type="number" min="1" step="1" value={formulario.proprietario_id} onChange={alterarCampo} required /><Input label="Tipo de imóvel" name="tipo" value={formulario.tipo} onChange={alterarCampo} minLength={2} maxLength={50} required /><div className="field"><label htmlFor="finalidade">Finalidade <span className="required-mark">*</span></label><select id="finalidade" name="finalidade" value={formulario.finalidade} onChange={alterarCampo} required><option value="VENDA">Venda</option><option value="LOCACAO">Locação</option></select></div></div></fieldset>
+        <fieldset className="form-section" disabled={salvando}><legend>Endereço</legend><div className="form-grid"><Input label="Logradouro" name="logradouro" value={formulario.logradouro} onChange={alterarCampo} minLength={3} maxLength={200} required /><Input label="Número" name="numero" value={formulario.numero} onChange={alterarCampo} maxLength={20} required /><Input label="Complemento" name="complemento" value={formulario.complemento} onChange={alterarCampo} maxLength={100} /><Input label="Bairro" name="bairro" value={formulario.bairro} onChange={alterarCampo} minLength={2} maxLength={100} required /><Input label="Cidade" name="cidade" value={formulario.cidade} onChange={alterarCampo} minLength={2} maxLength={100} required /><Input label="Estado (UF)" name="estado" value={formulario.estado} onChange={alterarCampo} maxLength={2} required /><Input label="CEP" name="cep" value={formulario.cep} onChange={alterarCampo} inputMode="numeric" required /></div></fieldset>
+        <fieldset className="form-section" disabled={salvando}><legend>Valores e características</legend><div className="form-grid-three"><Input label="Valor (R$)" name="valor" type="number" min="0.01" step="0.01" value={formulario.valor} onChange={alterarCampo} required /><Input label="Área (m²)" name="area" type="number" min="0.01" step="0.01" value={formulario.area} onChange={alterarCampo} required /><Input label="Quartos" name="quartos" type="number" min="0" step="1" value={formulario.quartos} onChange={alterarCampo} required /><Input label="Banheiros" name="banheiros" type="number" min="0" step="1" value={formulario.banheiros} onChange={alterarCampo} required /><Input label="Vagas de garagem" name="vagas_garagem" type="number" min="0" step="1" value={formulario.vagas_garagem} onChange={alterarCampo} required /></div></fieldset>
+        <fieldset className="form-section" disabled={salvando}><legend>Descrição</legend><div className="field"><label htmlFor="descricao">Detalhes do imóvel</label><textarea id="descricao" name="descricao" value={formulario.descricao} onChange={alterarCampo} placeholder="Adicione informações relevantes sobre o imóvel..." /></div></fieldset>
+        <div className="form-actions"><Link to="/imoveis" className="button button-secondary button-md">Cancelar</Link><Button type="submit" loading={salvando}>{salvando ? "Salvando" : modoEdicao ? "Salvar alterações" : "Cadastrar imóvel"}</Button></div>
+      </form>
+    </div>
   );
 }
 

@@ -2,9 +2,23 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { API_URL, apiRequest } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../components/ui/ToastProvider";
+import Badge from "../components/ui/Badge";
+import Button from "../components/ui/Button";
+import Card from "../components/ui/Card";
+import ConfirmModal from "../components/ui/ConfirmModal";
+import EmptyState from "../components/ui/EmptyState";
+import LoadingSpinner from "../components/ui/LoadingSpinner";
+
+function statusDoImovel(imovel) {
+  if (!imovel.ativo) return { label: "Inativo", variant: "danger" };
+  if (imovel.publicado) return { label: "Publicado", variant: "success" };
+  return { label: "Rascunho", variant: "warning" };
+}
 
 function GerenciarImoveis() {
   const { token } = useAuth();
+  const { success, error: notificarErro } = useToast();
   const navigate = useNavigate();
   const [imoveis, setImoveis] = useState([]);
   const [fotos, setFotos] = useState({});
@@ -12,18 +26,14 @@ function GerenciarImoveis() {
   const [carregandoFotos, setCarregandoFotos] = useState({});
   const [operacao, setOperacao] = useState("");
   const [erro, setErro] = useState("");
-  const [mensagem, setMensagem] = useState("");
+  const [confirmacao, setConfirmacao] = useState(null);
 
   const carregarImoveis = useCallback(async () => {
     setCarregando(true);
     setErro("");
-    try {
-      setImoveis(await apiRequest("/imoveis", {}, token));
-    } catch (error) {
-      setErro(error.message);
-    } finally {
-      setCarregando(false);
-    }
+    try { setImoveis(await apiRequest("/imoveis", {}, token)); }
+    catch (requestError) { setErro(requestError.message); }
+    finally { setCarregando(false); }
   }, [token]);
 
   useEffect(() => { carregarImoveis(); }, [carregarImoveis]);
@@ -31,79 +41,42 @@ function GerenciarImoveis() {
   async function carregarFotos(imovelId) {
     setFotos((anterior) => ({ ...anterior, [imovelId]: [] }));
     setCarregandoFotos((anterior) => ({ ...anterior, [imovelId]: true }));
-    setErro("");
     try {
       const dados = await apiRequest(`/imoveis/${imovelId}/fotos`, {}, token);
       setFotos((anterior) => ({ ...anterior, [imovelId]: dados }));
-    } catch (error) {
-      setErro(error.message);
-    } finally {
-      setCarregandoFotos((anterior) => ({ ...anterior, [imovelId]: false }));
-    }
+    } catch (requestError) { notificarErro(requestError.message); }
+    finally { setCarregandoFotos((anterior) => ({ ...anterior, [imovelId]: false })); }
   }
 
   function alternarFotos(imovel) {
     if (fotos[imovel.id]) {
-      setFotos((anterior) => {
-        const atualizado = { ...anterior };
-        delete atualizado[imovel.id];
-        return atualizado;
-      });
-    } else {
-      carregarFotos(imovel.id);
-    }
+      setFotos((anterior) => { const atualizado = { ...anterior }; delete atualizado[imovel.id]; return atualizado; });
+    } else carregarFotos(imovel.id);
   }
 
   async function publicar(imovel) {
     setOperacao(`publicar-${imovel.id}`);
-    setErro("");
-    setMensagem("");
-    try {
-      await apiRequest(`/imoveis/${imovel.id}/publicar`, { method: "PATCH" }, token);
-      setMensagem(`Imóvel #${imovel.id} publicado com sucesso.`);
-      await carregarImoveis();
-    } catch (error) {
-      setErro(error.message);
-    } finally {
-      setOperacao("");
-    }
+    try { await apiRequest(`/imoveis/${imovel.id}/publicar`, { method: "PATCH" }, token); success(`Imóvel #${imovel.id} publicado com sucesso.`); await carregarImoveis(); }
+    catch (requestError) { notificarErro(requestError.message); }
+    finally { setOperacao(""); }
   }
 
   async function inativar(imovel) {
-    if (!window.confirm(`Deseja inativar o imóvel #${imovel.id}?`)) return;
     setOperacao(`inativar-${imovel.id}`);
-    setErro("");
-    setMensagem("");
-    try {
-      await apiRequest(`/imoveis/${imovel.id}/inativar`, { method: "PATCH" }, token);
-      setMensagem(`Imóvel #${imovel.id} inativado com sucesso.`);
-      await carregarImoveis();
-    } catch (error) {
-      setErro(error.message);
-    } finally {
-      setOperacao("");
-    }
+    try { await apiRequest(`/imoveis/${imovel.id}/inativar`, { method: "PATCH" }, token); success(`Imóvel #${imovel.id} inativado com sucesso.`); await carregarImoveis(); }
+    catch (requestError) { notificarErro(requestError.message); }
+    finally { setOperacao(""); }
   }
 
   async function excluir(imovel) {
-    if (!window.confirm(`A exclusão do imóvel #${imovel.id} é permanente. Confirmar?`)) return;
     setOperacao(`excluir-${imovel.id}`);
-    setErro("");
-    setMensagem("");
     try {
       await apiRequest(`/imoveis/${imovel.id}`, { method: "DELETE" }, token);
-      setMensagem(`Imóvel #${imovel.id} excluído com sucesso.`);
+      success(`Imóvel #${imovel.id} excluído com sucesso.`);
       await carregarImoveis();
-      setFotos((anterior) => {
-        const atualizado = { ...anterior };
-        delete atualizado[imovel.id];
-        return atualizado;
-      });
-    } catch (error) {
-      setErro(error.message);
-    } finally {
-      setOperacao("");
-    }
+      setFotos((anterior) => { const atualizado = { ...anterior }; delete atualizado[imovel.id]; return atualizado; });
+    } catch (requestError) { notificarErro(requestError.message); }
+    finally { setOperacao(""); }
   }
 
   async function enviarFoto(event, imovel) {
@@ -113,105 +86,66 @@ function GerenciarImoveis() {
     const dados = new FormData();
     dados.append("arquivo", arquivo);
     setOperacao(`foto-${imovel.id}`);
-    setErro("");
-    setMensagem("");
     try {
       await apiRequest(`/imoveis/${imovel.id}/fotos`, { method: "POST", body: dados }, token);
-      setMensagem("Fotografia adicionada com sucesso.");
+      success("Fotografia adicionada com sucesso.");
       await carregarFotos(imovel.id);
       await carregarImoveis();
-    } catch (error) {
-      setErro(error.message);
-    } finally {
-      setOperacao("");
-    }
+    } catch (requestError) { notificarErro(requestError.message); }
+    finally { setOperacao(""); }
   }
 
   async function excluirFoto(imovel, foto) {
-    if (!window.confirm("Deseja excluir esta fotografia?")) return;
     setOperacao(`excluir-foto-${foto.id}`);
-    setErro("");
-    setMensagem("");
     try {
       await apiRequest(`/imoveis/${imovel.id}/fotos/${foto.id}`, { method: "DELETE" }, token);
-      setMensagem("Fotografia excluída com sucesso.");
+      success("Fotografia excluída com sucesso.");
       await carregarFotos(imovel.id);
       await carregarImoveis();
-    } catch (error) {
-      setErro(error.message);
+    } catch (requestError) { notificarErro(requestError.message); }
+    finally { setOperacao(""); }
+  }
+
+  function pedirConfirmacao(tipo, imovel, foto = null) { setConfirmacao({ tipo, imovel, foto }); }
+  function fecharConfirmacao() { if (!operacao) setConfirmacao(null); }
+  async function confirmar() {
+    const { tipo, imovel, foto } = confirmacao;
+    try {
+      if (tipo === "publicar") await publicar(imovel);
+      if (tipo === "inativar") await inativar(imovel);
+      if (tipo === "excluir") await excluir(imovel);
+      if (tipo === "excluir-foto") await excluirFoto(imovel, foto);
     } finally {
-      setOperacao("");
+      setConfirmacao(null);
     }
   }
 
-  function formatarValor(valor) {
-    return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  function formatarValor(valor) { return Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  function textoConfirmacao() {
+    if (!confirmacao) return null;
+    const { tipo, imovel, foto } = confirmacao;
+    if (tipo === "publicar") return { title: "Publicar imóvel?", description: `O imóvel #${imovel.id} ficará disponível no catálogo público.`, confirmLabel: "Publicar", destructive: false };
+    if (tipo === "inativar") return { title: "Inativar imóvel?", description: `O imóvel #${imovel.id} será retirado do catálogo. Esta ação também permite sua exclusão posterior.`, confirmLabel: "Inativar", destructive: true };
+    if (tipo === "excluir") return { title: "Excluir imóvel permanentemente?", description: `O imóvel #${imovel.id} e suas fotografias serão removidos. Esta ação não pode ser desfeita.`, confirmLabel: "Excluir imóvel", destructive: true };
+    return { title: "Excluir fotografia?", description: `A fotografia ${foto.nome_arquivo} será removida permanentemente.`, confirmLabel: "Excluir fotografia", destructive: true };
   }
 
-  function urlFoto(imovel, foto) {
-    return `${API_URL}/imoveis/publicos/${imovel.id}/fotos/${foto.id}`;
-  }
+  const detalhesConfirmacao = textoConfirmacao();
 
   return (
-    <main>
-      <h1>Gerenciamento de Imóveis</h1>
-      <p>Consulte e administre os imóveis cadastrados no sistema.</p>
-      <p><Link to="/dashboard">Voltar ao painel</Link>{" | "}<Link to="/imoveis/novo">Cadastrar novo imóvel</Link></p>
-      <button onClick={carregarImoveis} disabled={carregando || Boolean(operacao)}>Atualizar listagem</button>
-
-      {mensagem && <p role="status" style={{ color: "green" }}>{mensagem}</p>}
-      {erro && <p role="alert" style={{ color: "red" }}>Erro: {erro}</p>}
-      {carregando && <p>Carregando imóveis...</p>}
-      {!carregando && !erro && imoveis.length === 0 && <p>Nenhum imóvel cadastrado.</p>}
-
-      {!carregando && imoveis.length > 0 && (
-        <div style={{ overflowX: "auto" }}>
-          <table>
-            <thead><tr><th>ID</th><th>Tipo</th><th>Finalidade</th><th>Endereço</th><th>Valor</th><th>Situação</th><th>Status</th><th>Ações</th></tr></thead>
-            <tbody>
-              {imoveis.map((imovel) => {
-                const ocupado = Boolean(operacao && operacao.endsWith(`-${imovel.id}`));
-                const podePublicar = imovel.ativo && !imovel.publicado;
-                const podeInativar = imovel.ativo;
-                const podeExcluir = !imovel.ativo && !imovel.publicado;
-                return (
-                  <tr key={imovel.id}>
-                    <td>{imovel.id}</td>
-                    <td>{imovel.tipo}</td>
-                    <td>{imovel.finalidade}</td>
-                    <td>{imovel.logradouro}, {imovel.numero} - {imovel.bairro} - {imovel.cidade}/{imovel.estado}</td>
-                    <td>{formatarValor(imovel.valor)}</td>
-                    <td>{imovel.situacao_comercial}</td>
-                    <td>{imovel.ativo ? (imovel.publicado ? "Publicado" : "Ativo") : "Inativo"}</td>
-                    <td>
-                      <button onClick={() => navigate(`/imoveis/${imovel.id}/editar`)} disabled={!imovel.ativo || Boolean(operacao)}>Editar</button>{" "}
-                      {podePublicar && <button onClick={() => publicar(imovel)} disabled={ocupado || Boolean(operacao)}>{ocupado ? "Publicando..." : "Publicar"}</button>}{" "}
-                      {podeInativar && <button onClick={() => inativar(imovel)} disabled={ocupado || Boolean(operacao)}>{ocupado ? "Processando..." : "Inativar"}</button>}{" "}
-                      {podeExcluir && <button onClick={() => excluir(imovel)} disabled={ocupado || Boolean(operacao)}>{ocupado ? "Excluindo..." : "Excluir"}</button>}{" "}
-                      <button onClick={() => alternarFotos(imovel)} disabled={Boolean(operacao)}>{fotos[imovel.id] ? "Ocultar fotos" : "Gerenciar fotos"}</button>
-
-                      {fotos[imovel.id] && <section aria-label={`Fotos do imóvel ${imovel.id}`}>
-                        <h4>Fotografias</h4>
-                        <label>Adicionar fotografia (JPG, PNG ou WEBP, até 5 MB)
-                          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => enviarFoto(event, imovel)} disabled={Boolean(operacao) || !imovel.ativo} />
-                        </label>
-                        {carregandoFotos[imovel.id] && <p>Carregando fotografias...</p>}
-                        {!carregandoFotos[imovel.id] && fotos[imovel.id].length === 0 && <p>Nenhuma fotografia cadastrada.</p>}
-                        <div>{fotos[imovel.id].map((foto) => <figure key={foto.id}>
-                          {imovel.ativo && imovel.publicado ? <img src={urlFoto(imovel, foto)} alt={`Fotografia do imóvel ${imovel.id}`} width="160" /> : <figcaption>Prévia disponível após a publicação.</figcaption>}
-                          <figcaption>{foto.nome_arquivo}</figcaption>
-                          <button onClick={() => excluirFoto(imovel, foto)} disabled={Boolean(operacao)}>{operacao === `excluir-foto-${foto.id}` ? "Excluindo..." : "Excluir fotografia"}</button>
-                        </figure>)}</div>
-                      </section>}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+    <>
+      <div className="page-intro"><div><p className="eyebrow">CARTEIRA DE IMÓVEIS</p><h2>Gerenciar imóveis</h2><p>Publique, atualize e organize os imóveis da sua operação.</p></div><Link to="/imoveis/novo" className="button button-primary button-md">+ Novo imóvel</Link></div>
+      {erro && <p className="inline-message inline-error" role="alert">{erro}</p>}
+      <Card className="table-card">
+        {carregando ? <div className="empty-state"><LoadingSpinner label="Carregando imóveis..." /></div> : imoveis.length === 0 ? <EmptyState title="Nenhum imóvel cadastrado" description="Comece adicionando o primeiro imóvel à sua carteira." action={<Link to="/imoveis/novo" className="button button-primary button-md">Cadastrar imóvel</Link>} /> : <div className="table-wrap"><table className="property-table"><thead><tr><th>Imóvel</th><th>Localização</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody>{imoveis.map((imovel) => {
+          const status = statusDoImovel(imovel);
+          const ocupado = Boolean(operacao && operacao.includes(`-${imovel.id}`));
+          const publicavel = imovel.ativo && !imovel.publicado;
+          return <tr key={imovel.id}><td><strong>{imovel.tipo}</strong><div className="property-id">#{imovel.id} · {imovel.finalidade === "VENDA" ? "Venda" : "Locação"}</div></td><td className="property-address">{imovel.logradouro}, {imovel.numero}<br />{imovel.bairro} · {imovel.cidade}/{imovel.estado}</td><td><strong>{formatarValor(imovel.valor)}</strong><br /><span className="property-id">{imovel.area} m²</span></td><td><Badge variant={status.variant}>{status.label}</Badge><div className="property-id">{imovel.situacao_comercial}</div></td><td><div className="actions"><Button size="sm" variant="secondary" onClick={() => navigate(`/imoveis/${imovel.id}/editar`)} disabled={!imovel.ativo || Boolean(operacao)}>Editar</Button>{publicavel && <Button size="sm" onClick={() => pedirConfirmacao("publicar", imovel)} disabled={Boolean(operacao)}>{ocupado ? "Publicando..." : "Publicar"}</Button>}{imovel.ativo && <Button size="sm" variant="ghost" onClick={() => pedirConfirmacao("inativar", imovel)} disabled={Boolean(operacao)}>{ocupado ? "Processando..." : "Inativar"}</Button>}{!imovel.ativo && !imovel.publicado && <Button size="sm" variant="danger" onClick={() => pedirConfirmacao("excluir", imovel)} disabled={Boolean(operacao)}>{ocupado ? "Excluindo..." : "Excluir"}</Button>}<Button size="sm" variant="ghost" onClick={() => alternarFotos(imovel)} disabled={Boolean(operacao)}>{fotos[imovel.id] ? "Ocultar fotos" : "Fotos"}</Button></div>{fotos[imovel.id] && <div className="photo-panel"><h4>Galeria de fotografias</h4><label className="photo-upload">Adicionar JPG, PNG ou WEBP (até 5 MB)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => enviarFoto(event, imovel)} disabled={Boolean(operacao) || !imovel.ativo} /></label>{carregandoFotos[imovel.id] ? <LoadingSpinner label="Carregando fotos..." /> : fotos[imovel.id].length === 0 ? <p>Nenhuma fotografia cadastrada.</p> : <div className="photo-gallery">{fotos[imovel.id].map((foto) => <figure className="photo-item" key={foto.id}>{imovel.ativo && imovel.publicado ? <img src={`${API_URL}/imoveis/publicos/${imovel.id}/fotos/${foto.id}`} alt={`Fotografia do imóvel ${imovel.id}`} /> : <div className="photo-placeholder">Disponível após publicar</div>}<figcaption title={foto.nome_arquivo}>{foto.nome_arquivo}</figcaption><button type="button" onClick={() => pedirConfirmacao("excluir-foto", imovel, foto)} disabled={Boolean(operacao)}>{operacao === `excluir-foto-${foto.id}` ? "Excluindo..." : "Excluir foto"}</button></figure>)}</div>}</div>}</td></tr>;
+        })}</tbody></table></div>}
+      </Card>
+      <ConfirmModal open={Boolean(confirmacao)} {...(detalhesConfirmacao || {})} loading={Boolean(operacao)} onConfirm={confirmar} onCancel={fecharConfirmacao} />
+    </>
   );
 }
 

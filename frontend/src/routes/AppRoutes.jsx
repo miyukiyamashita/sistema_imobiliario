@@ -5,6 +5,7 @@ import Dashboard from "../pages/dashboard";
 import GerenciarImoveis from "../pages/GerenciarImoveis";
 import FormularioImovel from "../pages/FormularioImovel";
 import RotaProtegida from "./RotaProtegida";
+import AppLayout from "../components/layout/AppLayout";
 
 function AppRoutes() {
   return (
@@ -12,11 +13,13 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/cadastro" element={<Cadastro />} />
       <Route element={<RotaProtegida />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route element={<RotaProtegida perfisPermitidos={["CORRETOR_ADMIN"]} />}>
-          <Route path="/imoveis" element={<GerenciarImoveis />} />
-          <Route path="/imoveis/novo" element={<FormularioImovel />} />
-          <Route path="/imoveis/:id/editar" element={<FormularioImovel />} />
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route element={<RotaProtegida perfisPermitidos={["CORRETOR_ADMIN"]} />}>
+            <Route path="/imoveis" element={<GerenciarImoveis />} />
+            <Route path="/imoveis/novo" element={<FormularioImovel />} />
+            <Route path="/imoveis/:id/editar" element={<FormularioImovel />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
