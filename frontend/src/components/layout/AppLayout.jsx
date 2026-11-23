@@ -25,6 +25,7 @@ function AppLayout() {
         <nav aria-label="Navegação principal">
           <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/dashboard"><span>⌂</span> Dashboard</NavLink>
           {usuario?.perfil === "CORRETOR_ADMIN" && <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/imoveis"><span>▦</span> Gerenciar imóveis</NavLink>}
+          <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/imoveis/catalogo"><span>⌕</span> Catálogo público</NavLink>
         </nav>
         <div className="sidebar-footer"><p>Operação segura</p><span className="status-dot" /> Sessão ativa</div>
       </aside>

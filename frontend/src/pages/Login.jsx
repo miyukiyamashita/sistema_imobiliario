@@ -40,7 +40,7 @@ function Login() {
           <div className="field"><label htmlFor="senha">Senha</label><div className="password-wrap"><input id="senha" name="senha" type={mostrarSenha ? "text" : "password"} value={senha} onChange={(event) => setSenha(event.target.value)} required autoComplete="current-password" /><button className="password-toggle" type="button" onClick={() => setMostrarSenha(!mostrarSenha)} aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}>{mostrarSenha ? "Ocultar" : "Mostrar"}</button></div></div>
           <Button type="submit" loading={carregando}>{carregando ? "Entrando" : "Entrar no painel"}</Button>
         </form>
-        <p className="auth-footer">Ainda não possui uma conta? <Link to="/cadastro">Criar conta</Link></p>
+        <p className="auth-footer">Ainda não possui uma conta? <Link to="/cadastro">Criar conta</Link></p><p className="auth-footer"><Link to="/imoveis/catalogo">Explorar catálogo público</Link></p>
       </div></section>
     </main>
   );

@@ -1,7 +1,7 @@
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.models.imovel import (
@@ -15,6 +15,7 @@ from app.schemas.imovel import ImovelAtualizacao
 
 import logging
 import shutil
+from decimal import Decimal
 from uuid import uuid4
 
 from app.config.fotografias import UPLOAD_DIR
@@ -316,8 +317,16 @@ def excluir_imovel(
 
 def listar_imoveis_publicos(
     db: Session,
+    *,
+    busca: str | None = None,
+    cidade: str | None = None,
+    bairro: str | None = None,
+    tipo: str | None = None,
+    valor_min: Decimal | None = None,
+    valor_max: Decimal | None = None,
+    finalidade: FinalidadeImovel | None = None,
+    quartos: int | None = None,
 ) -> list[Imovel]:
-
     consulta = (
         select(Imovel)
         .options(selectinload(Imovel.fotos))
@@ -327,8 +336,57 @@ def listar_imoveis_publicos(
             Imovel.situacao_comercial
             == SituacaoComercial.DISPONIVEL,
         )
-        .order_by(Imovel.id.desc())
     )
 
-    return list(db.scalars(consulta).all())
+    if busca:
+        termo = f"%{busca.strip()}%"
+        consulta = consulta.where(or_(
+            Imovel.tipo.ilike(termo),
+            Imovel.logradouro.ilike(termo),
+            Imovel.bairro.ilike(termo),
+            Imovel.cidade.ilike(termo),
+            Imovel.estado.ilike(termo),
+            Imovel.descricao.ilike(termo),
+        ))
+    if cidade:
+        consulta = consulta.where(Imovel.cidade.ilike(cidade.strip()))
+    if bairro:
+        consulta = consulta.where(Imovel.bairro.ilike(bairro.strip()))
+    if tipo:
+        consulta = consulta.where(Imovel.tipo.ilike(tipo.strip()))
+    if valor_min is not None:
+        consulta = consulta.where(Imovel.valor >= valor_min)
+    if valor_max is not None:
+        consulta = consulta.where(Imovel.valor <= valor_max)
+    if finalidade is not None:
+        consulta = consulta.where(Imovel.finalidade == finalidade)
+    if quartos is not None:
+        consulta = consulta.where(Imovel.quartos >= quartos)
+
+    return list(db.scalars(consulta.order_by(Imovel.id.desc())).all())
+
+
+def buscar_imovel_publico(
+    db: Session,
+    imovel_id: int,
+) -> Imovel:
+    consulta = (
+        select(Imovel)
+        .options(selectinload(Imovel.fotos))
+        .where(
+            Imovel.id == imovel_id,
+            Imovel.ativo.is_(True),
+            Imovel.publicado.is_(True),
+            Imovel.situacao_comercial == SituacaoComercial.DISPONIVEL,
+        )
+    )
+    imovel = db.scalars(consulta).first()
+
+    if imovel is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Imóvel não encontrado no catálogo público."
+        )
+
+    return imovel
 

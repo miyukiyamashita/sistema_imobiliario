@@ -44,7 +44,7 @@ function Cadastro() {
           <div className="field"><label htmlFor="perfil">Tipo de conta</label><select id="perfil" name="perfil" value={formulario.perfil} onChange={atualizarCampo}><option value="CLIENTE">Cliente</option><option value="PROPRIETARIO">Proprietário</option></select></div>
           <Button type="submit" loading={carregando}>{carregando ? "Criando conta" : "Criar conta"}</Button>
         </form>}
-        <p className="auth-footer"><Link to="/login">Voltar para o login</Link></p>
+        <p className="auth-footer"><Link to="/login">Voltar para o login</Link></p><p className="auth-footer"><Link to="/imoveis/catalogo">Explorar catálogo público</Link></p>
       </div></section>
     </main>
   );

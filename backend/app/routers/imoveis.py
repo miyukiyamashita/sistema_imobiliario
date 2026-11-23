@@ -1,6 +1,7 @@
 
 
-from fastapi import APIRouter, Depends, Request, status
+from decimal import Decimal
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi import File, UploadFile
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
@@ -10,7 +11,8 @@ from app.database import get_db
 from app.core.dependencias import exigir_perfis
 from app.models.usuario import PerfilUsuario, Usuario
 from app.services.imovel_service import listar_imoveis, buscar_imovel, cadastrar_imovel
-from app.services.imovel_service import atualizar_imovel, publicar_imovel, inativar_imovel, excluir_imovel, listar_imoveis_publicos
+from app.services.imovel_service import atualizar_imovel, publicar_imovel, inativar_imovel, excluir_imovel, listar_imoveis_publicos, buscar_imovel_publico
+from app.models.imovel import FinalidadeImovel
 
 from app.config.fotografias import UPLOAD_DIR
 from app.models.imovel import Imovel, SituacaoComercial
@@ -76,8 +78,32 @@ def consultar_imoveis(
 def consultar_catalogo_publico(
     request: Request,
     db: Session = Depends(get_db),
+    busca: str | None = Query(default=None, max_length=100),
+    cidade: str | None = Query(default=None, max_length=100),
+    bairro: str | None = Query(default=None, max_length=100),
+    tipo: str | None = Query(default=None, max_length=50),
+    valor_min: Decimal | None = Query(default=None, ge=0),
+    valor_max: Decimal | None = Query(default=None, ge=0),
+    finalidade: FinalidadeImovel | None = Query(default=None),
+    quartos: int | None = Query(default=None, ge=0),
 ):
-    imoveis = listar_imoveis_publicos(db)
+    if valor_min is not None and valor_max is not None and valor_min > valor_max:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="O valor mínimo não pode ser maior que o valor máximo."
+        )
+
+    imoveis = listar_imoveis_publicos(
+        db,
+        busca=busca,
+        cidade=cidade,
+        bairro=bairro,
+        tipo=tipo,
+        valor_min=valor_min,
+        valor_max=valor_max,
+        finalidade=finalidade,
+        quartos=quartos,
+    )
 
     resultado = []
 
@@ -112,6 +138,33 @@ def consultar_catalogo_publico(
         resultado.append(imovel_publico)
 
     return resultado
+
+
+@router.get(
+    "/publicos/{imovel_id}",
+    response_model=ImovelPublicoResposta,
+    status_code=200,
+    summary="Consultar imóvel no catálogo público",
+)
+def consultar_imovel_publico(
+    imovel_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    imovel = buscar_imovel_publico(db, imovel_id)
+    dados = ImovelResposta.model_validate(imovel)
+    fotos = [
+        FotoPublicaResposta(
+            id=foto.id,
+            url=str(request.url_for(
+                "visualizar_foto_publica",
+                imovel_id=imovel.id,
+                foto_id=foto.id,
+            )),
+        )
+        for foto in sorted(imovel.fotos, key=lambda foto: foto.id)
+    ]
+    return ImovelPublicoResposta(**dados.model_dump(), fotos=fotos)
 
 
 @router.get(

@@ -123,7 +123,25 @@ class FotoPublicaResposta(BaseModel):
     url: str
 
 
-class ImovelPublicoResposta(ImovelResposta):
+class ImovelPublicoResposta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tipo: str
+    finalidade: FinalidadeImovelSchema
+    logradouro: str
+    numero: str
+    complemento: str | None = None
+    bairro: str
+    cidade: str
+    estado: str
+    cep: str
+    area: Decimal
+    valor: Decimal
+    quartos: int
+    banheiros: int
+    vagas_garagem: int
+    descricao: str | None = None
     fotos: list[FotoPublicaResposta] = Field(
         default_factory=list
     )
