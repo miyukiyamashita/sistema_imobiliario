@@ -15,6 +15,16 @@ class JustificativaVisita(BaseModel):
     justificativa: str = Field(min_length=1, max_length=2000)
 
 
+class ReagendamentoVisita(BaseModel):
+    data_visita: date
+    horario_visita: time
+    justificativa: str = Field(min_length=1, max_length=2000)
+
+
+class RespostaReagendamento(BaseModel):
+    aceitar: bool
+
+
 class HorarioDisponivelResposta(BaseModel):
     horario: time
     disponivel: bool
@@ -58,5 +68,8 @@ class SolicitacaoVisitaResposta(BaseModel):
     atualizado_em: datetime
     justificativa_decisao: str | None = None
     decidido_em: datetime | None = None
+    reagendamento_pendente: bool
+    nova_data_visita: date | None = None
+    novo_horario_visita: time | None = None
     imovel: ImovelVisitaResposta
     cliente: ClienteVisitaResposta | None = None

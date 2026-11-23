@@ -9,3 +9,4 @@ from app.models.solicitacao_imovel import SolicitacaoImovel, StatusSolicitacao
 from app.models.documento_imovel import DocumentoImovel
 from app.models.notificacao import Notificacao
 from app.models.solicitacao_visita import SolicitacaoVisita, StatusSolicitacaoVisita
+from app.models.proposta import Proposta, StatusProposta

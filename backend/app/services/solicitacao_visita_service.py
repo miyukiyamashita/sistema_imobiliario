@@ -2,15 +2,16 @@ from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.imovel import Imovel, SituacaoComercial
 from app.models.solicitacao_imovel import SolicitacaoImovel, StatusSolicitacao
 from app.models.solicitacao_visita import SolicitacaoVisita, StatusSolicitacaoVisita
-from app.models.usuario import Usuario
-from app.schemas.solicitacao_visita import SolicitacaoVisitaCriacao
+from app.models.notificacao import Notificacao
+from app.models.usuario import PerfilUsuario, Usuario
+from app.schemas.solicitacao_visita import ReagendamentoVisita, SolicitacaoVisitaCriacao
 
 
 FUSO_HORARIO = ZoneInfo("America/Sao_Paulo")
@@ -57,13 +58,23 @@ def buscar_imovel_agendavel(db: Session, imovel_id: int) -> Imovel:
 def horarios_disponiveis(db: Session, imovel_id: int, data_visita: date):
     buscar_imovel_agendavel(db, imovel_id)
     validar_data(data_visita)
-    ocupados = set(db.scalars(
-        select(SolicitacaoVisita.horario_visita).where(
+    visitas = db.scalars(
+        select(SolicitacaoVisita).where(
             SolicitacaoVisita.imovel_id == imovel_id,
-            SolicitacaoVisita.data_visita == data_visita,
-            SolicitacaoVisita.status.in_(STATUS_BLOQUEIAM),
+            or_(
+                (SolicitacaoVisita.data_visita == data_visita)
+                & (SolicitacaoVisita.status.in_(STATUS_BLOQUEIAM)),
+                (SolicitacaoVisita.reagendamento_pendente.is_(True))
+                & (SolicitacaoVisita.nova_data_visita == data_visita),
+            ),
         )
-    ).all())
+    ).all()
+    ocupados = set()
+    for visita in visitas:
+        if visita.status in STATUS_BLOQUEIAM and visita.data_visita == data_visita:
+            ocupados.add(visita.horario_visita)
+        if visita.reagendamento_pendente and visita.nova_data_visita == data_visita:
+            ocupados.add(visita.novo_horario_visita)
     agora = agora_sao_paulo()
     return [
         {"horario": horario, "disponivel": horario not in ocupados and datetime.combine(data_visita, horario, tzinfo=FUSO_HORARIO) > agora}
@@ -73,6 +84,11 @@ def horarios_disponiveis(db: Session, imovel_id: int, data_visita: date):
 
 def criar_solicitacao(db: Session, dados: SolicitacaoVisitaCriacao, cliente: Usuario) -> SolicitacaoVisita:
     buscar_imovel_agendavel(db, dados.imovel_id)
+    db.scalar(
+        select(Imovel)
+        .where(Imovel.id == dados.imovel_id)
+        .with_for_update()
+    )
     validar_data(dados.data_visita)
     validar_horario(dados.data_visita, dados.horario_visita)
 
@@ -96,6 +112,26 @@ def criar_solicitacao(db: Session, dados: SolicitacaoVisitaCriacao, cliente: Usu
         status=StatusSolicitacaoVisita.PENDENTE,
     )
     db.add(solicitacao)
+    imovel = db.get(Imovel, dados.imovel_id)
+    if imovel is not None:
+        destinatarios = {imovel.proprietario_id}
+        destinatarios.update(
+            db.scalars(
+                select(Usuario.id).where(
+                    Usuario.perfil == PerfilUsuario.CORRETOR_ADMIN,
+                    Usuario.ativo.is_(True),
+                )
+            ).all()
+        )
+        for usuario_id in destinatarios:
+            db.add(
+                Notificacao(
+                    usuario_id=usuario_id,
+                    tipo="NOVA_SOLICITACAO_VISITA",
+                    titulo="Nova solicitação de visita",
+                    mensagem=f"{cliente.nome} solicitou uma visita ao imóvel #{imovel.id}.",
+                )
+            )
     try:
         db.commit()
     except IntegrityError:
@@ -153,6 +189,8 @@ def atualizar_status(
     )
     if solicitacao is None:
         raise HTTPException(status_code=404, detail="Solicitação de visita não encontrada.")
+    if solicitacao.reagendamento_pendente and novo_status == StatusSolicitacaoVisita.CONFIRMADA:
+        raise HTTPException(status_code=409, detail="Aguarde a resposta do cliente ao reagendamento.")
 
     transicoes_permitidas = {
         StatusSolicitacaoVisita.PENDENTE: {
@@ -173,9 +211,172 @@ def atualizar_status(
     solicitacao.decidido_por_id = administrador.id
     solicitacao.decidido_em = agora_sao_paulo()
     solicitacao.justificativa_decisao = justificativa_limpa or None
+    solicitacao.reagendamento_pendente = False
+    solicitacao.nova_data_visita = None
+    solicitacao.novo_horario_visita = None
+    db.add(
+        Notificacao(
+            usuario_id=solicitacao.cliente_id,
+            tipo="ATUALIZACAO_VISITA",
+            titulo="Atualização da visita",
+            mensagem=(
+                f"A solicitação de visita #{solicitacao.id} foi "
+                f"{'confirmada' if novo_status == StatusSolicitacaoVisita.CONFIRMADA else 'recusada' if novo_status == StatusSolicitacaoVisita.RECUSADA else 'cancelada'}."
+                + (f" Motivo: {justificativa_limpa}" if justificativa_limpa else "")
+            ),
+        )
+    )
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Não foi possível concluir a alteração da solicitação.")
     return buscar_solicitacao(db, solicitacao_id)
+
+
+def propor_reagendamento(
+    db: Session,
+    solicitacao_id: int,
+    dados: ReagendamentoVisita,
+    administrador: Usuario,
+) -> SolicitacaoVisita:
+    solicitacao = db.get(SolicitacaoVisita, solicitacao_id)
+    if solicitacao is None:
+        raise HTTPException(status_code=404, detail="Solicitação de visita não encontrada.")
+    if solicitacao.status not in STATUS_BLOQUEIAM or solicitacao.reagendamento_pendente:
+        raise HTTPException(status_code=409, detail="Esta visita não pode ser reagendada agora.")
+
+    db.scalar(
+        select(Imovel)
+        .where(Imovel.id == solicitacao.imovel_id)
+        .with_for_update()
+    )
+    solicitacao = db.scalar(
+        select(SolicitacaoVisita)
+        .where(SolicitacaoVisita.id == solicitacao_id)
+        .with_for_update()
+    )
+    if solicitacao is None or solicitacao.status not in STATUS_BLOQUEIAM:
+        raise HTTPException(status_code=409, detail="Esta visita não pode ser reagendada agora.")
+    if solicitacao.reagendamento_pendente:
+        raise HTTPException(status_code=409, detail="Já existe um reagendamento aguardando resposta.")
+
+    validar_data(dados.data_visita)
+    validar_horario(dados.data_visita, dados.horario_visita)
+    visitas = db.scalars(
+        select(SolicitacaoVisita).where(
+            SolicitacaoVisita.imovel_id == solicitacao.imovel_id,
+            SolicitacaoVisita.id != solicitacao.id,
+            or_(
+                (SolicitacaoVisita.status.in_(STATUS_BLOQUEIAM))
+                & (SolicitacaoVisita.data_visita == dados.data_visita)
+                & (SolicitacaoVisita.horario_visita == dados.horario_visita),
+                (SolicitacaoVisita.reagendamento_pendente.is_(True))
+                & (SolicitacaoVisita.nova_data_visita == dados.data_visita)
+                & (SolicitacaoVisita.novo_horario_visita == dados.horario_visita),
+            ),
+        )
+    ).first()
+    if visitas is not None:
+        raise HTTPException(status_code=409, detail="Este horário já está ocupado para o imóvel.")
+
+    justificativa = dados.justificativa.strip()
+    if not justificativa:
+        raise HTTPException(status_code=422, detail="A justificativa do reagendamento é obrigatória.")
+    solicitacao.reagendamento_pendente = True
+    solicitacao.nova_data_visita = dados.data_visita
+    solicitacao.novo_horario_visita = dados.horario_visita
+    solicitacao.justificativa_decisao = justificativa
+    solicitacao.decidido_por_id = administrador.id
+    solicitacao.decidido_em = agora_sao_paulo()
+    db.add(
+        Notificacao(
+            usuario_id=solicitacao.cliente_id,
+            tipo="REAGENDAMENTO_VISITA",
+            titulo="Novo horário sugerido para sua visita",
+            mensagem=(
+                f"Foi sugerido {dados.data_visita:%d/%m/%Y} às "
+                f"{dados.horario_visita:%H:%M} para a visita ao imóvel "
+                f"#{solicitacao.imovel_id}. Motivo: {justificativa} "
+                "Confirme ou recuse no painel."
+            ),
+        )
+    )
+    db.commit()
+    return buscar_solicitacao(db, solicitacao.id)
+
+
+def responder_reagendamento(
+    db: Session,
+    solicitacao_id: int,
+    cliente: Usuario,
+    aceitar: bool,
+) -> SolicitacaoVisita:
+    solicitacao = db.get(SolicitacaoVisita, solicitacao_id)
+    if solicitacao is None or solicitacao.cliente_id != cliente.id:
+        raise HTTPException(status_code=404, detail="Solicitação de visita não encontrada.")
+    db.scalar(
+        select(Imovel)
+        .where(Imovel.id == solicitacao.imovel_id)
+        .with_for_update()
+    )
+    solicitacao = db.scalar(
+        select(SolicitacaoVisita)
+        .where(
+            SolicitacaoVisita.id == solicitacao_id,
+            SolicitacaoVisita.cliente_id == cliente.id,
+        )
+        .with_for_update()
+    )
+    if solicitacao is None:
+        raise HTTPException(status_code=404, detail="Solicitação de visita não encontrada.")
+    if not solicitacao.reagendamento_pendente:
+        raise HTTPException(status_code=409, detail="Esta visita não tem reagendamento pendente.")
+
+    if aceitar:
+        nova_data = solicitacao.nova_data_visita
+        novo_horario = solicitacao.novo_horario_visita
+        if nova_data is None or novo_horario is None:
+            raise HTTPException(status_code=409, detail="O reagendamento está incompleto.")
+        validar_data(nova_data)
+        validar_horario(nova_data, novo_horario)
+        ocupada = db.scalar(
+            select(SolicitacaoVisita.id).where(
+                SolicitacaoVisita.imovel_id == solicitacao.imovel_id,
+                SolicitacaoVisita.id != solicitacao.id,
+                or_(
+                    (SolicitacaoVisita.status.in_(STATUS_BLOQUEIAM))
+                    & (SolicitacaoVisita.data_visita == nova_data)
+                    & (SolicitacaoVisita.horario_visita == novo_horario),
+                    (SolicitacaoVisita.reagendamento_pendente.is_(True))
+                    & (SolicitacaoVisita.nova_data_visita == nova_data)
+                    & (SolicitacaoVisita.novo_horario_visita == novo_horario),
+                ),
+            )
+        )
+        if ocupada is not None:
+            raise HTTPException(status_code=409, detail="Este horário acabou de ser ocupado.")
+        solicitacao.data_visita = nova_data
+        solicitacao.horario_visita = novo_horario
+        solicitacao.status = StatusSolicitacaoVisita.CONFIRMADA
+    else:
+        solicitacao.status = StatusSolicitacaoVisita.CANCELADA
+        solicitacao.justificativa_decisao = "O cliente recusou o horário sugerido."
+
+    solicitacao.reagendamento_pendente = False
+    solicitacao.nova_data_visita = None
+    solicitacao.novo_horario_visita = None
+    solicitacao.decidido_em = agora_sao_paulo()
+    db.add(
+        Notificacao(
+            usuario_id=solicitacao.decidido_por_id,
+            tipo="RESPOSTA_REAGENDAMENTO",
+            titulo="Resposta ao reagendamento",
+            mensagem=(
+                f"{cliente.nome} {'confirmou' if aceitar else 'recusou'} "
+                f"o novo horário da visita #{solicitacao.id}."
+            ),
+        )
+    )
+    db.commit()
+    return buscar_solicitacao(db, solicitacao.id, cliente_id=cliente.id)

@@ -32,6 +32,13 @@ class SolicitacaoVisita(Base):
     atualizado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     justificativa_decisao: Mapped[str | None] = mapped_column(Text, nullable=True)
     decidido_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reagendamento_pendente: Mapped[bool] = mapped_column(
+        default=False,
+        server_default="false",
+        nullable=False,
+    )
+    nova_data_visita: Mapped[date | None] = mapped_column(Date, nullable=True)
+    novo_horario_visita: Mapped[time | None] = mapped_column(Time, nullable=True)
 
     imovel = relationship("Imovel")
     cliente = relationship("Usuario", foreign_keys=[cliente_id])

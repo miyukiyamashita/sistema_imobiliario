@@ -51,6 +51,7 @@ function App() {
         imovel={imovelSelecionado}
         onNavigate={navegar}
         usuario={usuario}
+        token={token}
       />
     );
   }
@@ -73,6 +74,7 @@ function App() {
     return (
       <Dashboard
         usuario={usuario}
+        token={token}
         onSair={sair}
         onNavigate={navegar}
       />

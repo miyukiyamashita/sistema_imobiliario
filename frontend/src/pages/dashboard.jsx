@@ -1,7 +1,10 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "../components/Layout";
 import { Icon } from "../components/Icon";
 import { propertyImages } from "../components/mockImoveis";
+import { apiRequest } from "../services/api";
+import AgendaVisitas from "./AgendaVisitas";
+import Propostas from "./Propostas";
 
 const recent = [
   {
@@ -40,9 +43,35 @@ function Status({ value }) {
   );
 }
 
-function Dashboard({ usuario, onSair, onNavigate }) {
+function Dashboard({ usuario, token, onSair, onNavigate }) {
   const [active, setActive] = useState("Visão Geral");
   const [mobile, setMobile] = useState(false);
+  const [notificacoes, setNotificacoes] = useState([]);
+  const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
+  const [erroNotificacoes, setErroNotificacoes] = useState("");
+
+  useEffect(() => {
+    if (!token || token === "demo-token") return;
+    apiRequest("/notificacoes", {}, token)
+      .then(setNotificacoes)
+      .catch((error) => setErroNotificacoes(error.message));
+  }, [token]);
+
+  async function marcarNotificacaoComoLida(notificacao) {
+    if (notificacao.lida) return;
+    try {
+      const atualizada = await apiRequest(
+        `/notificacoes/${notificacao.id}/ler`,
+        { method: "PATCH" },
+        token
+      );
+      setNotificacoes((anteriores) =>
+        anteriores.map((item) => item.id === atualizada.id ? atualizada : item)
+      );
+    } catch (error) {
+      setErroNotificacoes(error.message);
+    }
+  }
 
   const labelsPerfil = {
     CLIENTE: "Cliente",
@@ -171,15 +200,47 @@ function Dashboard({ usuario, onSair, onNavigate }) {
         </div>
 
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-600"
-          >
-            <Icon name="bell" size={19} />
-            <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-600 px-1 text-[9px] font-bold text-white">
-              3
-            </span>
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setNotificacoesAbertas(!notificacoesAbertas)}
+              className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-600"
+              aria-label="Notificações"
+            >
+              <Icon name="bell" size={19} />
+              {notificacoes.some((item) => !item.lida) && (
+                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-600 px-1 text-[9px] font-bold text-white">
+                  {notificacoes.filter((item) => !item.lida).length}
+                </span>
+              )}
+            </button>
+            {notificacoesAbertas && (
+              <div className="absolute right-0 top-12 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <h2 className="px-2 py-1 text-sm font-bold text-slate-900">Notificações</h2>
+                {erroNotificacoes && (
+                  <p role="alert" className="px-2 py-2 text-xs text-red-700">{erroNotificacoes}</p>
+                )}
+                {!notificacoes.length && !erroNotificacoes ? (
+                  <p className="px-2 py-3 text-xs text-slate-500">Nenhuma notificação.</p>
+                ) : (
+                  <ul className="max-h-80 space-y-1 overflow-y-auto">
+                    {notificacoes.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => marcarNotificacaoComoLida(item)}
+                          className={`w-full rounded-lg p-2 text-left ${item.lida ? "bg-white" : "bg-blue-50"}`}
+                        >
+                          <b className="block text-xs text-slate-800">{item.titulo}</b>
+                          <span className="mt-1 block text-xs text-slate-500">{item.mensagem}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
           <div className="hidden h-8 w-px bg-slate-200 sm:block" />
           <div className="hidden items-center gap-2.5 sm:flex">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
@@ -394,6 +455,10 @@ function Dashboard({ usuario, onSair, onNavigate }) {
               </div>
             </div>
           </>
+        ) : active === "Agenda de Visitas" || active === "Minhas Visitas" ? (
+          <AgendaVisitas token={token} perfil={usuario.perfil} />
+        ) : ["Minhas Propostas", "Propostas Recebidas", "Gerenciar Propostas"].includes(active) ? (
+          <Propostas token={token} perfil={usuario.perfil} />
         ) : (
           <div className="grid min-h-[60vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center">
             <div>

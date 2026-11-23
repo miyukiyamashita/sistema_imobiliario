@@ -1,7 +1,8 @@
-﻿import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Header, Field } from "../components/Layout";
 import { Icon } from "../components/Icon";
-import { mockProperties } from "../components/mockImoveis";
+import { apiRequest } from "../services/api";
+import { propertyImages } from "../components/mockImoveis";
 
 function Feature({ icon, value, label }) {
   return (
@@ -67,24 +68,75 @@ function PropertyCard({ property, onSelect }) {
 }
 
 export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [tipo, setTipo] = useState("");
   const [purpose, setPurpose] = useState("");
   const [quartos, setQuartos] = useState("");
 
+  useEffect(() => {
+    let active = true;
+
+    apiRequest("/imoveis/publicos")
+      .then((imoveis) => {
+        if (!active) return;
+        const formatador = new Intl.NumberFormat("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+          maximumFractionDigits: 0,
+        });
+        setProperties(
+          imoveis.map((imovel, index) => {
+            const finalidade = imovel.finalidade === "VENDA" ? "Venda" : "Aluguel";
+            return {
+              id: imovel.id,
+              title: `${imovel.tipo} em ${imovel.bairro}`,
+              place: `${imovel.bairro} · ${imovel.cidade}, ${imovel.estado}`,
+              address: `${imovel.logradouro}, ${imovel.numero} · ${imovel.bairro}, ${imovel.cidade}`,
+              price: `${formatador.format(Number(imovel.valor))}${finalidade === "Aluguel" ? "/mês" : ""}`,
+              numericPrice: Number(imovel.valor),
+              type: imovel.tipo,
+              purpose: finalidade,
+              finalidade: imovel.finalidade,
+              beds: imovel.quartos,
+              baths: imovel.banheiros,
+              cars: imovel.vagas_garagem,
+              area: Number(imovel.area),
+              image: imovel.fotos[0]?.url || propertyImages[index % propertyImages.length],
+              descricao: imovel.descricao,
+              fotos: imovel.fotos,
+            };
+          })
+        );
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (active) setLoadError(error.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const filtered = useMemo(
     () =>
-      mockProperties.filter(
+      properties.filter(
         (p) =>
           (!search ||
             `${p.title} ${p.place}`
               .toLowerCase()
               .includes(search.toLowerCase())) &&
-          (!tipo || p.type === tipo) &&
+          (!tipo || p.type.toLowerCase() === tipo.toLowerCase()) &&
           (!purpose || p.purpose === purpose) &&
           (!quartos || p.beds >= Number(quartos))
       ),
-    [search, tipo, purpose, quartos]
+    [properties, search, tipo, purpose, quartos]
   );
 
   function limparFiltros() {
@@ -206,7 +258,15 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
             </select>
           </div>
 
-          {filtered.length ? (
+          {loading ? (
+            <p role="status" className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-500">
+              Carregando imóveis...
+            </p>
+          ) : loadError ? (
+            <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-10 text-center text-red-700">
+              Não foi possível carregar os imóveis: {loadError}
+            </p>
+          ) : filtered.length ? (
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((property) => (
                 <PropertyCard

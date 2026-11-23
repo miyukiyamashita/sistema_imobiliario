@@ -10,6 +10,7 @@ from app.models.imovel import (
     SituacaoComercial,
 )
 from app.models.usuario import Usuario, PerfilUsuario
+from app.models.proposta import Proposta
 from app.schemas.imovel import ImovelCadastro
 from app.schemas.imovel import ImovelAtualizacao
 
@@ -259,8 +260,16 @@ def excluir_imovel(
             detail="Não é permitido excluir um imóvel publicado."
         )
 
-    # Futuramente, verificar vínculos com visitas,
-    # propostas e contratos antes de excluir.
+    possui_propostas = db.scalar(
+        select(Proposta.id)
+        .where(Proposta.imovel_id == imovel_id)
+        .limit(1)
+    )
+    if possui_propostas is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Não é possível excluir um imóvel com propostas registradas.",
+        )
 
     # 2. Localizar o diretório das fotografias
     diretorio = UPLOAD_DIR / str(imovel_id)
