@@ -63,7 +63,7 @@ function FormularioImovel() {
         return;
       }
       const endpoint = modoEdicao ? `/imoveis/${id}` : "/imoveis";
-      const resultado = await apiRequest(endpoint, { method: modoEdicao ? "PATCH" : "POST", body: JSON.stringify(dadosEnvio) }, token);
+      const resultado = await apiRequest(endpoint, { method: modoEdicao ? "PATCH" : "POST", body: dadosEnvio }, token);
       success(modoEdicao ? `Imóvel #${resultado.id} atualizado com sucesso.` : `Imóvel #${resultado.id} cadastrado com sucesso.`);
       if (modoEdicao) navigate("/imoveis");
       else setFormulario({ ...dadosIniciais });

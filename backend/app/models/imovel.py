@@ -189,3 +189,16 @@ class Imovel(Base):
     back_populates="imovel",
     passive_deletes=True
 )
+
+    solicitacoes = relationship(
+        "SolicitacaoImovel",
+        back_populates="imovel",
+        passive_deletes=True,
+        order_by="SolicitacaoImovel.id",
+    )
+
+    documentos = relationship(
+        "DocumentoImovel",
+        back_populates="imovel",
+        passive_deletes=True,
+    )

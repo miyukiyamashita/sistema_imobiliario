@@ -7,8 +7,14 @@ export async function apiRequest(
   token = null
 ) {
   const headers = { ...options.headers };
+  const isFormData = options.body instanceof FormData;
+  const body = isFormData || typeof options.body === "string"
+    ? options.body
+    : options.body === undefined || options.body === null
+      ? options.body
+      : JSON.stringify(options.body);
 
-  if (!(options.body instanceof FormData)) {
+  if (!isFormData) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -18,6 +24,7 @@ export async function apiRequest(
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    body,
     headers,
   });
 

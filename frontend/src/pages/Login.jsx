@@ -19,7 +19,7 @@ function Login() {
     setMensagem("");
     setCarregando(true);
     try {
-      const resposta = await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email, senha }) });
+      const resposta = await apiRequest("/auth/login", { method: "POST", body: { email, senha } });
       await entrar(resposta.access_token);
       navigate("/dashboard", { replace: true });
     } catch (erro) {

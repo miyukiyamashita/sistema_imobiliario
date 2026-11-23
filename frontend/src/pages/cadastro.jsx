@@ -20,7 +20,7 @@ function Cadastro() {
     setMensagem("");
     setCarregando(true);
     try {
-      await apiRequest("/usuarios/cadastro", { method: "POST", body: JSON.stringify(formulario) });
+      await apiRequest("/usuarios/cadastro", { method: "POST", body: formulario });
       setSucesso(true);
       setMensagem("Cadastro realizado com sucesso! Agora você já pode acessar sua conta.");
     } catch (erro) {

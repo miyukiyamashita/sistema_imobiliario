@@ -118,6 +118,14 @@ class ImovelAtualizacao(ImovelCadastro):
     descricao: str | None = None
 
 
+class ImovelProprietarioCadastro(ImovelCadastro):
+    proprietario_id: int | None = None
+
+
+class ImovelProprietarioAtualizacao(ImovelAtualizacao):
+    proprietario_id: int | None = None
+
+
 class FotoPublicaResposta(BaseModel):
     id: int
     url: str

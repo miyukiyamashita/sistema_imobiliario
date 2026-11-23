@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import Button from "./Button";
 
-function ConfirmModal({ open, title, description, confirmLabel = "Confirmar", cancelLabel = "Cancelar", destructive = false, loading = false, onConfirm, onCancel }) {
+function ConfirmModal({ open, title, description, children, confirmLabel = "Confirmar", cancelLabel = "Cancelar", destructive = false, loading = false, onConfirm, onCancel }) {
   const dialogRef = useRef(null);
   const cancelRef = useRef(null);
   const triggerRef = useRef(null);
@@ -38,6 +38,7 @@ function ConfirmModal({ open, title, description, confirmLabel = "Confirmar", ca
         <div className={`modal-icon ${destructive ? "modal-icon-danger" : "modal-icon-info"}`} aria-hidden="true">{destructive ? "!" : "?"}</div>
         <h2 id="confirm-modal-title">{title}</h2>
         <p>{description}</p>
+        {children}
         <div className="modal-actions">
           <Button ref={cancelRef} variant="ghost" onClick={onCancel} disabled={loading}>{cancelLabel}</Button>
           <Button variant={destructive ? "danger" : "primary"} onClick={onConfirm} loading={loading}>{confirmLabel}</Button>

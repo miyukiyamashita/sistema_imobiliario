@@ -5,6 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers.usuarios import router as usuarios_router
 from app.routers.auth import router as auth_router
 from app.routers.imoveis import router as imoveis_router
+from app.routers.solicitacoes import router as solicitacoes_router
+from app.routers.notificacoes import router as notificacoes_router
 from app.database import testar_conexao
 
 
@@ -40,6 +42,8 @@ app.add_middleware(
 # Registro das rotas
 app.include_router(usuarios_router)
 app.include_router(auth_router)
+app.include_router(solicitacoes_router)
+app.include_router(notificacoes_router)
 app.include_router(imoveis_router)
 
 
