@@ -1,19 +1,26 @@
 import { useEffect, useRef } from "react";
 import Button from "./Button";
 
-function ConfirmModal({ open, title, description, children, confirmLabel = "Confirmar", cancelLabel = "Cancelar", destructive = false, loading = false, onConfirm, onCancel }) {
+function ConfirmModal({ open, title, description, children, confirmLabel = "Confirmar", cancelLabel = "Cancelar", destructive = false, loading = false, initialFocusRef, onConfirm, onCancel }) {
   const dialogRef = useRef(null);
   const cancelRef = useRef(null);
   const triggerRef = useRef(null);
+  const onCancelRef = useRef(onCancel);
+  const loadingRef = useRef(loading);
+
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+    loadingRef.current = loading;
+  }, [loading, onCancel]);
 
   useEffect(() => {
     if (!open) return undefined;
     triggerRef.current = document.activeElement;
-    cancelRef.current?.focus();
+    (initialFocusRef?.current || cancelRef.current)?.focus();
     const onKeyDown = (event) => {
-      if (event.key === "Escape" && !loading) onCancel();
+      if (event.key === "Escape" && !loadingRef.current) onCancelRef.current();
       if (event.key === "Tab" && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll("button:not([disabled])");
+        const focusable = dialogRef.current.querySelectorAll("button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]");
         if (!focusable.length) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -28,7 +35,7 @@ function ConfirmModal({ open, title, description, children, confirmLabel = "Conf
       document.body.classList.remove("modal-open");
       triggerRef.current?.focus?.();
     };
-  }, [open, loading, onCancel]);
+  }, [initialFocusRef, open]);
 
   if (!open) return null;
 

@@ -7,6 +7,7 @@ from app.routers.auth import router as auth_router
 from app.routers.imoveis import router as imoveis_router
 from app.routers.solicitacoes import router as solicitacoes_router
 from app.routers.notificacoes import router as notificacoes_router
+from app.routers.solicitacoes_visita import router as solicitacoes_visita_router
 from app.database import testar_conexao
 
 
@@ -44,6 +45,7 @@ app.include_router(usuarios_router)
 app.include_router(auth_router)
 app.include_router(solicitacoes_router)
 app.include_router(notificacoes_router)
+app.include_router(solicitacoes_visita_router)
 app.include_router(imoveis_router)
 
 

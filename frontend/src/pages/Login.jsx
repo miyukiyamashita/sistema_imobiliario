@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { apiRequest } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Button from "../components/ui/Button";
@@ -8,6 +8,7 @@ import Input from "../components/ui/Input";
 function Login() {
   const { entrar } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -21,7 +22,8 @@ function Login() {
     try {
       const resposta = await apiRequest("/auth/login", { method: "POST", body: { email, senha } });
       await entrar(resposta.access_token);
-      navigate("/dashboard", { replace: true });
+      const destino = location.state?.de;
+      navigate(destino ? `${destino.pathname}${destino.search || ""}` : "/dashboard", { replace: true });
     } catch (erro) {
       setMensagem(erro.message);
     } finally {

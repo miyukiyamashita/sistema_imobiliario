@@ -8,7 +8,7 @@ function AppLayout() {
   const [menuAberto, setMenuAberto] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const titulos = { "/dashboard": "Visão geral", "/imoveis": "Gerenciamento de imóveis", "/imoveis/novo": "Novo imóvel", "/meus-imoveis": "Meus imóveis", "/anunciar-imovel": "Anunciar imóvel", "/minhas-solicitacoes": "Minhas solicitações", "/solicitacoes-imoveis": "Solicitações pendentes" };
+  const titulos = { "/dashboard": "Visão geral", "/imoveis": "Gerenciamento de imóveis", "/imoveis/novo": "Novo imóvel", "/meus-imoveis": "Meus imóveis", "/anunciar-imovel": "Anunciar imóvel", "/minhas-solicitacoes": "Minhas solicitações", "/solicitacoes-imoveis": "Solicitações pendentes", "/minhas-visitas": "Minhas visitas", "/solicitacoes-visita": "Solicitações de visitas" };
   const titulo = location.pathname.includes("/editar") ? "Editar imóvel" : (titulos[location.pathname] || "Sistema imobiliário");
   const iniciais = usuario?.nome?.split(" ").map((parte) => parte[0]).slice(0, 2).join("").toUpperCase();
 
@@ -26,7 +26,9 @@ function AppLayout() {
           <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/dashboard"><span>⌂</span> Dashboard</NavLink>
           {usuario?.perfil === "CORRETOR_ADMIN" && <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/imoveis"><span>▦</span> Gerenciar imóveis</NavLink>}
           {usuario?.perfil === "CORRETOR_ADMIN" && <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/solicitacoes-imoveis"><span>✓</span> Solicitações pendentes</NavLink>}
+          {usuario?.perfil === "CORRETOR_ADMIN" && <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/solicitacoes-visita"><span>◷</span> Solicitações de visitas</NavLink>}
           {usuario?.perfil === "PROPRIETARIO" && <><NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/meus-imoveis"><span>⌂</span> Meus imóveis</NavLink><NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/anunciar-imovel"><span>+</span> Anunciar meu imóvel</NavLink><NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/minhas-solicitacoes"><span>◷</span> Minhas solicitações</NavLink></>}
+          {usuario?.perfil === "CLIENTE" && <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/minhas-visitas"><span>◷</span> Minhas visitas</NavLink>}
           <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/imoveis/catalogo"><span>⌕</span> Catálogo público</NavLink>
           <NavLink onClick={() => setMenuAberto(false)} className={({ isActive }) => `nav-item ${isActive ? "nav-item-active" : ""}`} to="/notificacoes"><span>●</span> Notificações</NavLink>
         </nav>

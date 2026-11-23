@@ -13,6 +13,8 @@ import MeusImoveis from "../pages/MeusImoveis";
 import MinhasSolicitacoes from "../pages/MinhasSolicitacoes";
 import SolicitacoesImoveis from "../pages/SolicitacoesImoveis";
 import Notificacoes from "../pages/Notificacoes";
+import MinhasVisitas from "../pages/MinhasVisitas";
+import SolicitacoesVisita from "../pages/SolicitacoesVisita";
 
 function AppRoutes() {
   return (
@@ -25,6 +27,9 @@ function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/notificacoes" element={<Notificacoes />} />
+          <Route element={<RotaProtegida perfisPermitidos={["CLIENTE"]} />}>
+            <Route path="/minhas-visitas" element={<MinhasVisitas />} />
+          </Route>
           <Route element={<RotaProtegida perfisPermitidos={["PROPRIETARIO"]} />}>
             <Route path="/meus-imoveis" element={<MeusImoveis />} />
             <Route path="/anunciar-imovel" element={<AnunciarImovel />} />
@@ -32,6 +37,7 @@ function AppRoutes() {
           </Route>
           <Route element={<RotaProtegida perfisPermitidos={["CORRETOR_ADMIN"]} />}>
             <Route path="/solicitacoes-imoveis" element={<SolicitacoesImoveis />} />
+            <Route path="/solicitacoes-visita" element={<SolicitacoesVisita />} />
           </Route>
           <Route element={<RotaProtegida perfisPermitidos={["CORRETOR_ADMIN"]} />}>
             <Route path="/imoveis" element={<GerenciarImoveis />} />
