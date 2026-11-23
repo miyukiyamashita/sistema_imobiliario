@@ -1,15 +1,22 @@
 
-const API_URL = import.meta.env.VITE_API_URL;
+export const API_URL = import.meta.env.VITE_API_URL;
 
 export async function apiRequest(
   endpoint,
   options = {},
   token = null
 ) {
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
+  const headers = { ...options.headers };
+  const isFormData = options.body instanceof FormData;
+  const body = isFormData || typeof options.body === "string"
+    ? options.body
+    : options.body === undefined || options.body === null
+      ? options.body
+      : JSON.stringify(options.body);
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -17,10 +24,11 @@ export async function apiRequest(
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    body,
     headers,
   });
 
-  const data = await response.json();
+  const data = response.status === 204 ? null : await response.json();
 
   if (!response.ok) {
     let mensagem = "Erro ao realizar requisição.";
