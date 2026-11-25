@@ -5,6 +5,11 @@ import Cadastro from "../pages/cadastro";
 import DetalhesImovel from "../pages/DetalhesImovel";
 import Login from "../pages/Login";
 import Dashboard from "../pages/dashboard";
+import GerenciarImoveis from "../pages/GerenciarImoveis";
+import AnunciarImovel from "../pages/AnunciarImovel";
+import MeusImoveis from "../pages/MeusImoveis";
+import MinhasSolicitacoes from "../pages/MinhasSolicitacoes";
+import SolicitacoesImoveis from "../pages/SolicitacoesImoveis";
 import RotaProtegida from "./RotaProtegida";
 
 function navegarPara(navigate, destino) {
@@ -15,6 +20,11 @@ function navegarPara(navigate, destino) {
     dashboard: "/dashboard",
     agenda: "/agenda-visitas",
     propostas: "/propostas",
+    anunciar: "/anunciar-imovel",
+    "meus-imoveis": "/meus-imoveis",
+    solicitacoes: "/minhas-solicitacoes",
+    "gerenciar-imoveis": "/gerenciar-imoveis",
+    "solicitacoes-imoveis": "/solicitacoes-imoveis",
   };
   navigate(destinos[destino] || destino);
 }
@@ -93,6 +103,12 @@ function DashboardRota({ active }) {
   );
 }
 
+function PaginaProtegida({ Component }) {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  return <Component token={token} onNavigate={(destino) => navegarPara(navigate, destino)} />;
+}
+
 export default function AppRoutes() {
   return (
     <Routes>
@@ -104,6 +120,15 @@ export default function AppRoutes() {
       <Route path="/cadastro" element={<CadastroRota />} />
       <Route element={<RotaProtegida perfis={["CLIENTE", "PROPRIETARIO", "CORRETOR_ADMIN"]} />}>
         <Route path="/dashboard" element={<DashboardRota active="Visão Geral" />} />
+      </Route>
+      <Route element={<RotaProtegida perfis={["CORRETOR_ADMIN"]} />}>
+        <Route path="/gerenciar-imoveis" element={<PaginaProtegida Component={GerenciarImoveis} />} />
+        <Route path="/solicitacoes-imoveis" element={<PaginaProtegida Component={SolicitacoesImoveis} />} />
+      </Route>
+      <Route element={<RotaProtegida perfis={["PROPRIETARIO"]} />}>
+        <Route path="/anunciar-imovel" element={<PaginaProtegida Component={AnunciarImovel} />} />
+        <Route path="/meus-imoveis" element={<PaginaProtegida Component={MeusImoveis} />} />
+        <Route path="/minhas-solicitacoes" element={<PaginaProtegida Component={MinhasSolicitacoes} />} />
       </Route>
       <Route element={<RotaProtegida perfis={["CLIENTE", "CORRETOR_ADMIN"]} />}>
         <Route path="/agenda-visitas" element={<DashboardRota active="Agenda de Visitas" />} />

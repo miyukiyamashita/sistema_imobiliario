@@ -333,6 +333,7 @@ def responder_reagendamento(
     if not solicitacao.reagendamento_pendente:
         raise HTTPException(status_code=409, detail="Esta visita não tem reagendamento pendente.")
 
+    status_anterior = solicitacao.status
     if aceitar:
         nova_data = solicitacao.nova_data_visita
         novo_horario = solicitacao.novo_horario_visita
@@ -360,13 +361,15 @@ def responder_reagendamento(
         solicitacao.horario_visita = novo_horario
         solicitacao.status = StatusSolicitacaoVisita.CONFIRMADA
     else:
-        solicitacao.status = StatusSolicitacaoVisita.CANCELADA
+        # A recusa do novo horário não é cancelamento administrativo. O cliente
+        # apenas rejeita a sugestão e a visita mantém o status original.
+        solicitacao.status = status_anterior
         solicitacao.justificativa_decisao = "O cliente recusou o horário sugerido."
 
     solicitacao.reagendamento_pendente = False
     solicitacao.nova_data_visita = None
     solicitacao.novo_horario_visita = None
-    solicitacao.decidido_em = agora_sao_paulo()
+    solicitacao.decidido_em = None
     db.add(
         Notificacao(
             usuario_id=solicitacao.decidido_por_id,

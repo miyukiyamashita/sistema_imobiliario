@@ -1,37 +1,9 @@
 import { useEffect, useState } from "react";
 import { Logo } from "../components/Layout";
 import { Icon } from "../components/Icon";
-import { propertyImages } from "../components/mockImoveis";
 import { apiRequest } from "../services/api";
 import AgendaVisitas from "./AgendaVisitas";
 import Propostas from "./Propostas";
-
-const recent = [
-  {
-    type: "Visita",
-    item: "Casa contemporânea no Alphaville",
-    date: "18 Jun · 14:00",
-    status: "Confirmada",
-  },
-  {
-    type: "Proposta enviada",
-    item: "Apartamento com vista panorâmica",
-    date: "16 Jun · 10:42",
-    status: "Em análise",
-  },
-  {
-    type: "Visita",
-    item: "Residência moderna e iluminada",
-    date: "20 Jun · 11:30",
-    status: "Pendente",
-  },
-  {
-    type: "Proposta recebida",
-    item: "Apartamento premium mobiliado",
-    date: "14 Jun · 16:18",
-    status: "Aprovada",
-  },
-];
 
 function Status({ value }) {
   const color = value === "Aprovada" || value === "Confirmada" ? "green" : "amber";
@@ -49,6 +21,7 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
   const [notificacoes, setNotificacoes] = useState([]);
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
   const [erroNotificacoes, setErroNotificacoes] = useState("");
+  const [resumo, setResumo] = useState({ visitas: [], propostas: [], imoveis: [] });
 
   useEffect(() => {
     if (!token) return;
@@ -56,6 +29,30 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
       .then(setNotificacoes)
       .catch((error) => setErroNotificacoes(error.message));
   }, [token]);
+
+  useEffect(() => {
+    let ativo = true;
+    const endpoints = usuario.perfil === "CLIENTE"
+      ? ["/solicitacoes-visita/minhas", "/propostas/minhas"]
+      : usuario.perfil === "PROPRIETARIO"
+        ? ["/imoveis/meus", "/propostas/recebidas"]
+        : ["/imoveis", "/solicitacoes-visita", "/propostas/recebidas"];
+    Promise.all(endpoints.map((endpoint) => apiRequest(endpoint, {}, token)))
+      .then((resultados) => {
+        if (!ativo) return;
+        const dados = { visitas: [], propostas: [], imoveis: [] };
+        resultados.forEach((resultado, index) => {
+          const endpoint = endpoints[index];
+          if (endpoint.includes("solicitacoes-visita")) dados.visitas = resultado;
+          if (endpoint.includes("propostas")) dados.propostas = resultado;
+          if (endpoint.includes("imoveis")) dados.imoveis = resultado;
+        });
+        setResumo(dados);
+      })
+      .catch(() => {})
+      .finally(() => { ativo = false; });
+    return () => { ativo = false; };
+  }, [token, usuario.perfil]);
 
   async function marcarNotificacaoComoLida(notificacao) {
     if (notificacao.lida) return;
@@ -91,12 +88,14 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
       { icon: "home", label: "Visão Geral" },
       { icon: "building", label: "Meus Imóveis" },
       { icon: "plus", label: "Cadastrar Imóvel" },
+      { icon: "clipboard", label: "Minhas Solicitações" },
       { icon: "proposal", label: "Propostas Recebidas" },
       { icon: "user", label: "Meu Perfil" },
     ],
     CORRETOR_ADMIN: [
       { icon: "home", label: "Visão Geral" },
       { icon: "building", label: "Gerenciar Imóveis" },
+      { icon: "clipboard", label: "Solicitações de Imóveis" },
       { icon: "calendar", label: "Agenda de Visitas" },
       { icon: "proposal", label: "Gerenciar Propostas" },
       { icon: "contract", label: "Contratos" },
@@ -113,6 +112,16 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
         .join("")
         .toUpperCase()
     : "FI";
+  const cards = [
+    ["calendar", String(resumo.visitas.filter((item) => ["PENDENTE", "CONFIRMADA"].includes(item.status)).length), "Visitas ativas", "Dados atuais"],
+    ["proposal", String(resumo.propostas.filter((item) => item.status !== "RECUSADA").length), "Propostas ativas", "Dados atuais"],
+    ["building", String(resumo.imoveis.length), "Imóveis vinculados", "Dados atuais"],
+    ["bell", String(notificacoes.filter((item) => !item.lida).length), "Notificações novas", "Dados atuais"],
+  ];
+  const recent = [
+    ...resumo.visitas.slice(0, 3).map((item) => ({ type: "Visita", item: `Imóvel #${item.imovel_id}`, date: `${item.data_visita} · ${item.horario_visita}`, status: item.status })),
+    ...resumo.propostas.slice(0, 3).map((item) => ({ type: "Proposta", item: `Imóvel #${item.imovel_id}`, date: new Date(item.criada_em).toLocaleDateString("pt-BR"), status: item.status })),
+  ].slice(0, 4);
 
   return (
     <div className="min-h-screen bg-slate-50 lg:pl-[260px]">
@@ -141,6 +150,11 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
                   "Minhas Propostas": "propostas",
                   "Propostas Recebidas": "propostas",
                   "Gerenciar Propostas": "propostas",
+                  "Meus Imóveis": "meus-imoveis",
+                  "Cadastrar Imóvel": "anunciar",
+                  "Gerenciar Imóveis": "gerenciar-imoveis",
+                  "Minhas Solicitações": "solicitacoes",
+                  "Solicitações de Imóveis": "solicitacoes-imoveis",
                 }[item.label];
                 if (destino) onNavigate(destino);
                 setActive(item.label);
@@ -293,17 +307,7 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {[
-                ["calendar", "2", "Visitas agendadas", "1 esta semana"],
-                ["proposal", "3", "Propostas ativas", "1 atualização hoje"],
-                ["heart", "12", "Imóveis favoritos", "2 novos"],
-                [
-                  "contract",
-                  "1",
-                  "Contrato em andamento",
-                  "Aguardando assinatura",
-                ],
-              ].map(([icon, number, label, note]) => (
+              {cards.map(([icon, number, label, note]) => (
                 <div key={label} className="summary-card">
                   <div className="flex items-start justify-between">
                     <span className="summary-icon">
@@ -401,65 +405,19 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
 
             <div className="mt-7 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
               <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-900">Próxima visita</h3>
-                  <span className="status green">
-                    <span />
-                    Confirmada
-                  </span>
-                </div>
-                <div className="mt-5 flex flex-col gap-5 sm:flex-row">
-                  <img
-                    src={propertyImages[2]}
-                    className="h-28 w-full rounded-xl object-cover sm:w-40"
-                    alt=""
-                  />
-                  <div className="flex-1">
-                    <b className="text-sm text-slate-800">
-                      Residência moderna e iluminada
-                    </b>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-400">
-                      <Icon name="pin" size={13} />
-                      Jardins · São Paulo, SP
-                    </p>
-                    <div className="mt-4 flex gap-5 text-xs font-semibold text-slate-600">
-                      <span className="flex gap-1.5">
-                        <Icon
-                          name="calendar"
-                          size={15}
-                          className="text-blue-700"
-                        />
-                        20 de junho
-                      </span>
-                      <span className="flex gap-1.5">
-                        <Icon
-                          name="clock"
-                          size={15}
-                          className="text-blue-700"
-                        />
-                        11:30
-                      </span>
-                    </div>
+                <h3 className="font-bold text-slate-900">Próxima visita</h3>
+                {resumo.visitas[0] ? (
+                  <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                    <b className="text-slate-900">Imóvel #{resumo.visitas[0].imovel_id}</b>
+                    <p className="mt-2">{resumo.visitas[0].data_visita} às {resumo.visitas[0].horario_visita}</p>
+                    <p className="mt-1">Status: {resumo.visitas[0].status}</p>
                   </div>
-                </div>
+                ) : <p className="mt-5 text-sm text-slate-500">Nenhuma visita registrada.</p>}
               </div>
-
               <div className="rounded-2xl bg-blue-900 p-6 text-white">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10">
-                  <Icon name="bell" />
-                </span>
-                <h3 className="mt-5 font-bold">
-                  Você tem 3 novas notificações
-                </h3>
-                <p className="mt-2 text-xs leading-5 text-blue-100/70">
-                  Uma proposta foi atualizada e sua próxima visita foi confirmada.
-                </p>
-                <button
-                  type="button"
-                  className="mt-5 text-xs font-bold text-white"
-                >
-                  Ver notificações →
-                </button>
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><Icon name="bell" /></span>
+                <h3 className="mt-5 font-bold">Notificações</h3>
+                <p className="mt-2 text-xs leading-5 text-blue-100/70">Você possui {notificacoes.filter((item) => !item.lida).length} notificação(ões) não lida(s).</p>
               </div>
             </div>
           </>

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+/* eslint-disable react/set-state-in-effect */
+import { useCallback, useEffect, useState } from "react";
 import { Header, Field } from "../components/Layout";
 import { Icon } from "../components/Icon";
 import { apiRequest } from "../services/api";
-import { propertyImages } from "../components/mockImoveis";
 
 function Feature({ icon, value, label }) {
   return (
@@ -68,18 +68,39 @@ function PropertyCard({ property, onSelect }) {
 }
 
 export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
-  const [properties, setProperties] = useState([]);
+  const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [bairro, setBairro] = useState("");
   const [tipo, setTipo] = useState("");
   const [purpose, setPurpose] = useState("");
   const [quartos, setQuartos] = useState("");
+  const [valorMin, setValorMin] = useState("");
+  const [valorMax, setValorMax] = useState("");
 
-  useEffect(() => {
+  const buscarImoveis = useCallback(async (event, valores = {}) => {
+    event?.preventDefault();
+    setLoading(true);
+    setLoadError("");
+    const params = new URLSearchParams();
+    const filtros = {
+      busca: valores.search ?? search,
+      cidade: valores.cidade ?? cidade,
+      bairro: valores.bairro ?? bairro,
+      tipo: valores.tipo ?? tipo,
+      valor_min: valores.valorMin ?? valorMin,
+      valor_max: valores.valorMax ?? valorMax,
+      finalidade: valores.purpose ?? (purpose === "Venda" ? "VENDA" : purpose === "Aluguel" ? "LOCACAO" : ""),
+      quartos: valores.quartos ?? quartos,
+    };
+    Object.entries(filtros).forEach(([chave, valor]) => {
+      if (valor !== "") params.set(chave, valor);
+    });
+
     let active = true;
-
-    apiRequest("/imoveis/publicos")
+    apiRequest(`/imoveis/publicos${params.toString() ? `?${params}` : ""}`)
       .then((imoveis) => {
         if (!active) return;
         const formatador = new Intl.NumberFormat("pt-BR", {
@@ -87,8 +108,8 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
           currency: "BRL",
           maximumFractionDigits: 0,
         });
-        setProperties(
-          imoveis.map((imovel, index) => {
+        const formatados =
+          imoveis.map((imovel) => {
             const finalidade = imovel.finalidade === "VENDA" ? "Venda" : "Aluguel";
             return {
               id: imovel.id,
@@ -104,12 +125,12 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
               baths: imovel.banheiros,
               cars: imovel.vagas_garagem,
               area: Number(imovel.area),
-              image: imovel.fotos[0]?.url || propertyImages[index % propertyImages.length],
+              image: imovel.fotos[0]?.url,
               descricao: imovel.descricao,
               fotos: imovel.fotos,
             };
-          })
-        );
+          });
+        setFiltered(formatados);
         setLoadError("");
       })
       .catch((error) => {
@@ -122,28 +143,22 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [bairro, cidade, purpose, quartos, search, tipo, valorMax, valorMin]);
 
-  const filtered = useMemo(
-    () =>
-      properties.filter(
-        (p) =>
-          (!search ||
-            `${p.title} ${p.place}`
-              .toLowerCase()
-              .includes(search.toLowerCase())) &&
-          (!tipo || p.type.toLowerCase() === tipo.toLowerCase()) &&
-          (!purpose || p.purpose === purpose) &&
-          (!quartos || p.beds >= Number(quartos))
-      ),
-    [properties, search, tipo, purpose, quartos]
-  );
+  useEffect(() => {
+    buscarImoveis();
+  }, [buscarImoveis]);
 
   function limparFiltros() {
     setSearch("");
+    setCidade("");
+    setBairro("");
     setTipo("");
     setPurpose("");
     setQuartos("");
+    setValorMin("");
+    setValorMax("");
+    buscarImoveis(undefined, { search: "", cidade: "", bairro: "", tipo: "", purpose: "", quartos: "", valorMin: "", valorMax: "" });
   }
 
   return (
@@ -177,6 +192,24 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
                   </div>
                 </Field>
 
+                <Field label="Cidade">
+                  <input
+                    className="input"
+                    value={cidade}
+                    onChange={(event) => setCidade(event.target.value)}
+                    placeholder="Cidade"
+                  />
+                </Field>
+
+                <Field label="Bairro">
+                  <input
+                    className="input"
+                    value={bairro}
+                    onChange={(event) => setBairro(event.target.value)}
+                    placeholder="Bairro"
+                  />
+                </Field>
+
                 <Field label="Tipo de imóvel">
                   <select
                     value={tipo}
@@ -204,8 +237,8 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
 
                 <Field label="Faixa de preço">
                   <div className="flex gap-2">
-                    <input className="input min-w-0" placeholder="Mín." />
-                    <input className="input min-w-0" placeholder="Máx." />
+                    <input className="input min-w-0" type="number" min="0" value={valorMin} onChange={(event) => setValorMin(event.target.value)} placeholder="Mín." />
+                    <input className="input min-w-0" type="number" min="0" value={valorMax} onChange={(event) => setValorMax(event.target.value)} placeholder="Máx." />
                   </div>
                 </Field>
 
@@ -224,7 +257,7 @@ export default function Catalogo({ onNavigate, onSelectImovel, usuario }) {
                 </Field>
 
                 <div className="flex items-end gap-2">
-                  <button type="button" className="btn-primary h-11">
+                  <button type="button" onClick={buscarImoveis} className="btn-primary h-11">
                     <Icon name="search" size={18} /> Buscar
                   </button>
                 </div>

@@ -1,0 +1,8 @@
+import { useEffect, useState } from "react";
+import { apiRequest } from "../services/api";
+
+export default function MeusImoveis({ token, onNavigate }) {
+  const [imoveis, setImoveis] = useState([]); const [erro, setErro] = useState("");
+  useEffect(() => { let ativo = true; apiRequest("/imoveis/meus", {}, token).then((dados) => ativo && setImoveis(dados)).catch((error) => ativo && setErro(error.message)); return () => { ativo = false; }; }, [token]);
+  return <section className="space-y-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold text-slate-900">Meus imóveis</h2><p className="mt-1 text-sm text-slate-500">Acompanhe seus rascunhos e anúncios.</p></div><button type="button" className="btn-primary" onClick={() => onNavigate("anunciar")}>Anunciar imóvel</button></div>{erro && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{erro}</p>}<div className="grid gap-4">{imoveis.map((imovel) => <article key={imovel.id} className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold text-slate-900">{imovel.tipo} · {imovel.cidade}</h3><p className="mt-1 text-sm text-slate-500">{imovel.bairro} · {imovel.situacao_comercial}</p></div><button type="button" className="btn-secondary" onClick={() => onNavigate(`/anunciar-imovel?imovel_id=${imovel.id}`)}>Editar / continuar</button></div></article>)}</div>{!imoveis.length && !erro && <p className="rounded-xl border border-dashed p-8 text-center text-slate-500">Você ainda não possui imóveis cadastrados.</p>}</section>;
+}
