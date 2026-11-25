@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Header, Field } from "../components/Layout";
 import { Icon } from "../components/Icon";
-import { mockProperties, propertyImages } from "../components/mockImoveis";
+import { propertyImages } from "../components/mockImoveis";
 import { apiRequest } from "../services/api";
 
 const agora = new Date();
@@ -9,8 +9,36 @@ const dataMinimaVisita = new Date(
   agora.getTime() - agora.getTimezoneOffset() * 60_000
 ).toISOString().slice(0, 10);
 
-export default function DetalhesImovel({ imovel, onNavigate, usuario, token }) {
-  const atual = imovel || mockProperties[0];
+function adaptarImovel(imovel) {
+  const formatador = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 0,
+  });
+  const finalidade = imovel.finalidade === "VENDA" ? "Venda" : "Aluguel";
+  return {
+    id: imovel.id,
+    title: `${imovel.tipo} em ${imovel.bairro}`,
+    place: `${imovel.bairro} · ${imovel.cidade}, ${imovel.estado}`,
+    address: `${imovel.logradouro}, ${imovel.numero} · ${imovel.bairro}, ${imovel.cidade}`,
+    price: `${formatador.format(Number(imovel.valor))}${finalidade === "Aluguel" ? "/mês" : ""}`,
+    type: imovel.tipo,
+    purpose: finalidade,
+    finalidade: imovel.finalidade,
+    beds: imovel.quartos,
+    baths: imovel.banheiros,
+    cars: imovel.vagas_garagem,
+    area: Number(imovel.area),
+    image: imovel.fotos?.[0]?.url,
+    descricao: imovel.descricao,
+    fotos: imovel.fotos || [],
+  };
+}
+
+export default function DetalhesImovel({ imovel, imovelId, onNavigate, usuario, token }) {
+  const [imovelCarregado, setImovelCarregado] = useState(null);
+  const [erroImovel, setErroImovel] = useState("");
+  const atual = imovel || imovelCarregado;
   const [mode, setMode] = useState("visit");
   const [dataVisita, setDataVisita] = useState("");
   const [horarioVisita, setHorarioVisita] = useState("");
@@ -23,7 +51,23 @@ export default function DetalhesImovel({ imovel, onNavigate, usuario, token }) {
   const [carregando, setCarregando] = useState(false);
 
   useEffect(() => {
-    if (mode !== "visit" || !dataVisita || !atual.id) return;
+    if (imovel || !imovelId) return undefined;
+    let active = true;
+    apiRequest(`/imoveis/publicos/${imovelId}`)
+      .then((resposta) => {
+        if (active) setImovelCarregado(adaptarImovel(resposta));
+      })
+      .catch((error) => {
+        if (active) setErroImovel(error.message);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [imovel, imovelId]);
+
+  useEffect(() => {
+    if (mode !== "visit" || !dataVisita || !atual?.id) return;
 
     let active = true;
     apiRequest(
@@ -46,7 +90,7 @@ export default function DetalhesImovel({ imovel, onNavigate, usuario, token }) {
     return () => {
       active = false;
     };
-  }, [atual.id, dataVisita, mode]);
+  }, [atual?.id, dataVisita, mode]);
 
   async function submit(e) {
     e.preventDefault();
@@ -60,7 +104,7 @@ export default function DetalhesImovel({ imovel, onNavigate, usuario, token }) {
       return;
     }
 
-    if (!token || token === "demo-token") {
+    if (!token) {
       setMensagem("Entre com sua conta para enviar a solicitação ao sistema.");
       return;
     }
@@ -106,6 +150,19 @@ export default function DetalhesImovel({ imovel, onNavigate, usuario, token }) {
     } finally {
       setCarregando(false);
     }
+  }
+
+  if (!atual) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 p-6">
+        <p
+          role={erroImovel ? "alert" : "status"}
+          className={erroImovel ? "text-red-700" : "text-slate-500"}
+        >
+          {erroImovel || "Carregando imóvel..."}
+        </p>
+      </main>
+    );
   }
 
   return (

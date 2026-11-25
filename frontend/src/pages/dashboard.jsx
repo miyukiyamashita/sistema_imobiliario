@@ -43,15 +43,15 @@ function Status({ value }) {
   );
 }
 
-function Dashboard({ usuario, token, onSair, onNavigate }) {
-  const [active, setActive] = useState("Visão Geral");
+function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão Geral" }) {
+  const [active, setActive] = useState(activeInicial);
   const [mobile, setMobile] = useState(false);
   const [notificacoes, setNotificacoes] = useState([]);
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
   const [erroNotificacoes, setErroNotificacoes] = useState("");
 
   useEffect(() => {
-    if (!token || token === "demo-token") return;
+    if (!token) return;
     apiRequest("/notificacoes", {}, token)
       .then(setNotificacoes)
       .catch((error) => setErroNotificacoes(error.message));
@@ -135,6 +135,14 @@ function Dashboard({ usuario, token, onSair, onNavigate }) {
               key={item.label}
               type="button"
               onClick={() => {
+                const destino = {
+                  "Minhas Visitas": "agenda",
+                  "Agenda de Visitas": "agenda",
+                  "Minhas Propostas": "propostas",
+                  "Propostas Recebidas": "propostas",
+                  "Gerenciar Propostas": "propostas",
+                }[item.label];
+                if (destino) onNavigate(destino);
                 setActive(item.label);
                 setMobile(false);
               }}

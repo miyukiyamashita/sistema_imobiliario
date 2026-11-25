@@ -3,7 +3,7 @@ import { apiRequest } from "../services/api";
 import { AuthShell, Field } from "../components/Layout";
 import { Icon } from "../components/Icon";
 
-function Login({ onLogin, onDemoLogin, onNavigate }) {
+function Login({ onLogin, onNavigate }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -86,18 +86,6 @@ function Login({ onLogin, onDemoLogin, onNavigate }) {
           {carregando ? "Entrando..." : "Entrar"} <Icon name="arrow" size={18} />
         </button>
       </form>
-
-      {onDemoLogin && (
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={onDemoLogin}
-            className="btn-secondary h-11 w-full text-xs"
-          >
-            Entrar em modo demonstração (sem backend)
-          </button>
-        </div>
-      )}
 
       <p className="mt-7 text-center text-sm text-slate-500">
         Ainda não tem uma conta?{" "}

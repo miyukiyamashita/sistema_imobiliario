@@ -1,5 +1,18 @@
 
 export const API_URL = import.meta.env.VITE_API_URL;
+let unauthorizedHandler = null;
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
+
+export class ApiError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.name = "ApiError";
+    this.status = statusCode;
+  }
+}
 
 export async function apiRequest(
   endpoint,
@@ -56,7 +69,11 @@ export async function apiRequest(
         .join(" | ");
     }
 
-    throw new Error(mensagem);
+    if (response.status === 401 && token && unauthorizedHandler) {
+      unauthorizedHandler();
+    }
+
+    throw new ApiError(mensagem, response.status);
   }
 
   return data;
