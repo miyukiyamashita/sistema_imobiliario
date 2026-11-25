@@ -1,31 +1,462 @@
-import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import Badge from "../components/ui/Badge";
-import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
+/* eslint-disable react/set-state-in-effect */
+import React, { useEffect, useState } from "react";
+import { Logo } from "../components/Layout";
+import { Icon } from "../components/Icon";
+import { apiRequest } from "../services/api";
+import AgendaVisitas from "./AgendaVisitas";
+import Propostas from "./Propostas";
 
-function Dashboard() {
-  const { usuario, sair } = useAuth();
-  const admin = usuario.perfil === "CORRETOR_ADMIN";
-  const perfilLabel = { CLIENTE: "Cliente", PROPRIETARIO: "Proprietário", CORRETOR_ADMIN: "Corretor administrador" }[usuario.perfil] || usuario.perfil;
+function Status({ value }) {
+  const color = value === "Aprovada" || value === "Confirmada" ? "green" : "amber";
+  return (
+    <span className={`status ${color}`}>
+      <span />
+      {value}
+    </span>
+  );
+}
+
+function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão Geral" }) {
+  const [active, setActive] = useState(activeInicial);
+  const [mobile, setMobile] = useState(false);
+  const [notificacoes, setNotificacoes] = useState([]);
+  const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
+  const [erroNotificacoes, setErroNotificacoes] = useState("");
+  const [resumo, setResumo] = useState({ visitas: [], propostas: [], imoveis: [] });
+
+  useEffect(() => {
+    setActive(activeInicial);
+  }, [activeInicial]);
+
+  useEffect(() => {
+    if (!token) return;
+    apiRequest("/notificacoes", {}, token)
+      .then(setNotificacoes)
+      .catch((error) => setErroNotificacoes(error.message));
+  }, [token]);
+
+  useEffect(() => {
+    let ativo = true;
+    const endpoints = usuario.perfil === "CLIENTE"
+      ? ["/solicitacoes-visita/minhas", "/propostas/minhas"]
+      : usuario.perfil === "PROPRIETARIO"
+        ? ["/imoveis/meus", "/propostas/recebidas"]
+        : ["/imoveis", "/solicitacoes-visita", "/propostas/recebidas"];
+    Promise.all(endpoints.map((endpoint) => apiRequest(endpoint, {}, token)))
+      .then((resultados) => {
+        if (!ativo) return;
+        const dados = { visitas: [], propostas: [], imoveis: [] };
+        resultados.forEach((resultado, index) => {
+          const endpoint = endpoints[index];
+          if (endpoint.includes("solicitacoes-visita")) dados.visitas = resultado;
+          if (endpoint.includes("propostas")) dados.propostas = resultado;
+          if (endpoint.includes("imoveis")) dados.imoveis = resultado;
+        });
+        setResumo(dados);
+      })
+      .catch(() => {})
+      .finally(() => { ativo = false; });
+    return () => { ativo = false; };
+  }, [token, usuario.perfil]);
+
+  async function marcarNotificacaoComoLida(notificacao) {
+    if (notificacao.lida) return;
+    try {
+      const atualizada = await apiRequest(
+        `/notificacoes/${notificacao.id}/ler`,
+        { method: "PATCH" },
+        token
+      );
+      setNotificacoes((anteriores) =>
+        anteriores.map((item) => item.id === atualizada.id ? atualizada : item)
+      );
+    } catch (error) {
+      setErroNotificacoes(error.message);
+    }
+  }
+
+  const labelsPerfil = {
+    CLIENTE: "Cliente",
+    PROPRIETARIO: "Proprietário",
+    CORRETOR_ADMIN: "Corretor / Admin",
+  };
+
+  const menusPorPerfil = {
+    CLIENTE: [
+      { icon: "home", label: "Visão Geral" },
+      { icon: "calendar", label: "Minhas Visitas" },
+      { icon: "proposal", label: "Minhas Propostas" },
+      { icon: "contract", label: "Contratos" },
+      { icon: "user", label: "Meu Perfil" },
+    ],
+    PROPRIETARIO: [
+      { icon: "home", label: "Visão Geral" },
+      { icon: "building", label: "Meus Imóveis" },
+      { icon: "plus", label: "Cadastrar Imóvel" },
+      { icon: "clipboard", label: "Minhas Solicitações" },
+      { icon: "proposal", label: "Propostas Recebidas" },
+      { icon: "user", label: "Meu Perfil" },
+    ],
+    CORRETOR_ADMIN: [
+      { icon: "home", label: "Visão Geral" },
+      { icon: "building", label: "Gerenciar Imóveis" },
+      { icon: "clipboard", label: "Solicitações de Imóveis" },
+      { icon: "calendar", label: "Agenda de Visitas" },
+      { icon: "proposal", label: "Gerenciar Propostas" },
+      { icon: "contract", label: "Contratos" },
+    ],
+  };
+
+  const navItems = menusPorPerfil[usuario.perfil] || menusPorPerfil.CLIENTE;
+  const perfilFormatado = labelsPerfil[usuario.perfil] || usuario.perfil;
+  const iniciais = usuario.nome
+    ? usuario.nome
+        .split(" ")
+        .slice(0, 2)
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+    : "FI";
+  const cards = [
+    ["calendar", String(resumo.visitas.filter((item) => ["PENDENTE", "CONFIRMADA"].includes(item.status)).length), "Visitas ativas", "Dados atuais"],
+    ["proposal", String(resumo.propostas.filter((item) => item.status !== "RECUSADA").length), "Propostas ativas", "Dados atuais"],
+    ["building", String(resumo.imoveis.length), "Imóveis vinculados", "Dados atuais"],
+    ["bell", String(notificacoes.filter((item) => !item.lida).length), "Notificações novas", "Dados atuais"],
+  ];
+  const recent = [
+    ...resumo.visitas.slice(0, 3).map((item) => ({ type: "Visita", item: `Imóvel #${item.imovel_id}`, date: `${item.data_visita} · ${item.horario_visita}`, status: item.status })),
+    ...resumo.propostas.slice(0, 3).map((item) => ({ type: "Proposta", item: `Imóvel #${item.imovel_id}`, date: new Date(item.criada_em).toLocaleDateString("pt-BR"), status: item.status })),
+  ].slice(0, 4);
 
   return (
-    <>
-      <div className="page-intro"><div><h2>Olá, {usuario.nome.split(" ")[0]} 👋</h2><p>Acompanhe sua operação e acesse seus principais recursos.</p></div><Badge variant="success">Sessão ativa</Badge></div>
-      <div className="dashboard-grid">
-        <Card className="welcome-card"><h2>Bem-vindo ao seu painel</h2><p>Tenha uma visão organizada das ferramentas disponíveis para o seu perfil.</p></Card>
-        <Card className="profile-card"><p className="eyebrow">SEU PERFIL</p><dl><dt>Nome</dt><dd>{usuario.nome}</dd><dt>E-mail</dt><dd>{usuario.email}</dd><dt>Tipo de acesso</dt><dd>{perfilLabel}</dd></dl></Card>
-      </div>
-      <Card className="shortcut-card"><p className="eyebrow">ACESSO RÁPIDO</p><h3>O que você deseja fazer?</h3><p>Selecione uma área para continuar.</p>
-        <div className="feature-list">
-          {admin && <Link className="feature-link" to="/imoveis">Gerenciar imóveis<span>Cadastro, publicação e fotos →</span></Link>}
-          <div className="feature-link">Consultar imóveis<span>Catálogo imobiliário</span></div>
-          <div className="feature-link">Minhas propostas<span>Em breve</span></div>
-          <div className="feature-link">Minhas visitas<span>Em breve</span></div>
+    <div className="min-h-screen bg-slate-50 lg:pl-[260px]">
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-blue-950 px-4 py-6 transition-transform lg:translate-x-0 ${
+          mobile ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="px-3">
+          <Logo light onClick={() => onNavigate("catalogo")} />
         </div>
-      </Card>
-      <div className="dashboard-logout"><Button variant="ghost" onClick={sair}>Sair da conta</Button></div>
-    </>
+        <div className="my-8 h-px bg-white/10" />
+        <p className="px-3 text-[10px] font-bold uppercase tracking-[.18em] text-blue-300/60">
+          Menu principal
+        </p>
+
+        <nav className="mt-3 space-y-1">
+          {navItems.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => {
+                const destino = {
+                  "Minhas Visitas": "agenda",
+                  "Agenda de Visitas": "agenda",
+                  "Minhas Propostas": "propostas",
+                  "Propostas Recebidas": "propostas",
+                  "Gerenciar Propostas": "propostas",
+                  "Meus Imóveis": "meus-imoveis",
+                  "Cadastrar Imóvel": "anunciar",
+                  "Gerenciar Imóveis": "gerenciar-imoveis",
+                  "Minhas Solicitações": "solicitacoes",
+                  "Solicitações de Imóveis": "solicitacoes-imoveis",
+                }[item.label];
+                if (destino) onNavigate(destino);
+                setActive(item.label);
+                setMobile(false);
+              }}
+              className={`side-link ${
+                active === item.label ? "side-active" : ""
+              }`}
+            >
+              <Icon name={item.icon} size={19} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="absolute bottom-5 left-4 right-4 rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-blue-600 text-sm font-bold text-white">
+              {iniciais}
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-xs text-white">
+                {usuario.nome}
+              </b>
+              <small className="text-[10px] text-blue-200/60">
+                {perfilFormatado}
+              </small>
+            </span>
+            <button
+              type="button"
+              onClick={onSair}
+              title="Sair da conta"
+              className="text-blue-200/70 hover:text-white"
+            >
+              <Icon name="arrow" size={17} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {mobile && (
+        <button
+          type="button"
+          onClick={() => setMobile(false)}
+          className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden"
+          aria-label="Fechar menu"
+        />
+      )}
+
+      <header className="sticky top-0 z-30 flex h-[76px] items-center justify-between border-b border-slate-200 bg-white px-5 lg:px-9">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setMobile(true)}
+            className="icon-button lg:hidden"
+          >
+            <Icon name="menu" />
+          </button>
+          <div>
+            <p className="text-xs text-slate-400">
+              Painel · {perfilFormatado}
+            </p>
+            <h1 className="text-lg font-bold text-slate-900">{active}</h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setNotificacoesAbertas(!notificacoesAbertas)}
+              className="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 text-slate-600"
+              aria-label="Notificações"
+            >
+              <Icon name="bell" size={19} />
+              {notificacoes.some((item) => !item.lida) && (
+                <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-white bg-red-600 px-1 text-[9px] font-bold text-white">
+                  {notificacoes.filter((item) => !item.lida).length}
+                </span>
+              )}
+            </button>
+            {notificacoesAbertas && (
+              <div className="absolute right-0 top-12 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <h2 className="px-2 py-1 text-sm font-bold text-slate-900">Notificações</h2>
+                {erroNotificacoes && (
+                  <p role="alert" className="px-2 py-2 text-xs text-red-700">{erroNotificacoes}</p>
+                )}
+                {!notificacoes.length && !erroNotificacoes ? (
+                  <p className="px-2 py-3 text-xs text-slate-500">Nenhuma notificação.</p>
+                ) : (
+                  <ul className="max-h-80 space-y-1 overflow-y-auto">
+                    {notificacoes.map((item) => (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          onClick={() => marcarNotificacaoComoLida(item)}
+                          className={`w-full rounded-lg p-2 text-left ${item.lida ? "bg-white" : "bg-blue-50"}`}
+                        >
+                          <b className="block text-xs text-slate-800">{item.titulo}</b>
+                          <span className="mt-1 block text-xs text-slate-500">{item.mensagem}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="hidden h-8 w-px bg-slate-200 sm:block" />
+          <div className="hidden items-center gap-2.5 sm:flex">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-800">
+              {iniciais}
+            </span>
+            <div>
+              <b className="block text-xs text-slate-800">{usuario.nome}</b>
+              <small className="text-[10px] text-slate-400">
+                {usuario.email}
+              </small>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onSair}
+            className="btn-secondary !px-3.5 !py-2 text-xs"
+          >
+            Sair
+          </button>
+        </div>
+      </header>
+
+      <main className="px-5 py-7 lg:px-9 lg:py-9">
+        {active !== "Visão Geral" && (
+          <button type="button" className="mb-5 text-sm font-semibold text-blue-800 hover:text-blue-950" onClick={() => onNavigate("dashboard")}>
+            ← Voltar ao painel
+          </button>
+        )}
+        {active === "Visão Geral" ? (
+          <>
+            <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-950">
+                  Olá, {usuario.nome.split(" ")[0]}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Acompanhe aqui suas atividades mais recentes na Futura Imóveis.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate("catalogo")}
+                className="btn-primary"
+              >
+                <Icon name="search" size={18} /> Explorar imóveis
+              </button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {cards.map(([icon, number, label, note]) => (
+                <div key={label} className="summary-card">
+                  <div className="flex items-start justify-between">
+                    <span className="summary-icon">
+                      <Icon name={icon} />
+                    </span>
+                    <Icon
+                      name="chevron"
+                      size={18}
+                      className="text-slate-300"
+                    />
+                  </div>
+                  <p className="mt-5 text-3xl font-bold tracking-tight text-slate-950">
+                    {number}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-700">
+                    {label}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-400">{note}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-7 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+                <div>
+                  <h3 className="font-bold text-slate-900">
+                    Solicitações recentes
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Visitas e propostas atualizadas recentemente
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="text-xs font-bold text-blue-700"
+                >
+                  Ver todas
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
+                      <th>Solicitação</th>
+                      <th>Imóvel</th>
+                      <th>Data</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recent.map((row) => (
+                      <tr
+                        key={row.item}
+                        className="border-t border-slate-100 text-sm"
+                      >
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <span className="grid h-9 w-9 place-items-center rounded-lg bg-blue-50 text-blue-700">
+                              <Icon
+                                name={
+                                  row.type === "Visita"
+                                    ? "calendar"
+                                    : "proposal"
+                                }
+                                size={17}
+                              />
+                            </span>
+                            <b className="font-semibold text-slate-700">
+                              {row.type}
+                            </b>
+                          </div>
+                        </td>
+                        <td className="font-medium text-slate-700">
+                          {row.item}
+                        </td>
+                        <td className="text-slate-500">{row.date}</td>
+                        <td>
+                          <Status value={row.status} />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="icon-button !h-8 !w-8"
+                          >
+                            <Icon name="chevron" size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="mt-7 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6">
+                <h3 className="font-bold text-slate-900">Próxima visita</h3>
+                {resumo.visitas[0] ? (
+                  <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                    <b className="text-slate-900">Imóvel #{resumo.visitas[0].imovel_id}</b>
+                    <p className="mt-2">{resumo.visitas[0].data_visita} às {resumo.visitas[0].horario_visita}</p>
+                    <p className="mt-1">Status: {resumo.visitas[0].status}</p>
+                  </div>
+                ) : <p className="mt-5 text-sm text-slate-500">Nenhuma visita registrada.</p>}
+              </div>
+              <div className="rounded-2xl bg-blue-900 p-6 text-white">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10"><Icon name="bell" /></span>
+                <h3 className="mt-5 font-bold">Notificações</h3>
+                <p className="mt-2 text-xs leading-5 text-blue-100/70">Você possui {notificacoes.filter((item) => !item.lida).length} notificação(ões) não lida(s).</p>
+              </div>
+            </div>
+          </>
+        ) : active === "Agenda de Visitas" || active === "Minhas Visitas" ? (
+          <AgendaVisitas token={token} perfil={usuario.perfil} />
+        ) : ["Minhas Propostas", "Propostas Recebidas", "Gerenciar Propostas"].includes(active) ? (
+          <Propostas token={token} perfil={usuario.perfil} />
+        ) : (
+          <div className="grid min-h-[60vh] place-items-center rounded-2xl border border-dashed border-slate-300 bg-white text-center">
+            <div>
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-blue-700">
+                <Icon
+                  name={
+                    navItems.find((n) => n.label === active)?.icon || "home"
+                  }
+                  size={26}
+                />
+              </span>
+              <h2 className="mt-4 text-xl font-bold text-slate-900">
+                {active}
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Módulo preparado para integração com os endpoints de {active.toLowerCase()}.
+              </p>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
   );
 }
 

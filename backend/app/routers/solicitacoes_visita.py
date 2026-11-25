@@ -7,8 +7,8 @@ from app.core.dependencias import exigir_perfis
 from app.database import get_db
 from app.models.solicitacao_visita import StatusSolicitacaoVisita
 from app.models.usuario import PerfilUsuario, Usuario
-from app.schemas.solicitacao_visita import HorariosDisponiveisResposta, JustificativaVisita, SolicitacaoVisitaCriacao, SolicitacaoVisitaResposta
-from app.services.solicitacao_visita_service import atualizar_status, criar_solicitacao, horarios_disponiveis, listar_administrativas, listar_minhas, listar_pendentes
+from app.schemas.solicitacao_visita import HorariosDisponiveisResposta, JustificativaVisita, ReagendamentoVisita, RespostaReagendamento, SolicitacaoVisitaCriacao, SolicitacaoVisitaResposta
+from app.services.solicitacao_visita_service import atualizar_status, criar_solicitacao, horarios_disponiveis, listar_administrativas, listar_minhas, listar_pendentes, propor_reagendamento, responder_reagendamento
 
 
 router = APIRouter(tags=["Solicitações de visitas"])
@@ -86,3 +86,23 @@ def cancelar(
     administrador: Usuario = Depends(ADMIN),
 ):
     return atualizar_status(db, solicitacao_id, administrador, StatusSolicitacaoVisita.CANCELADA, dados.justificativa)
+
+
+@router.patch("/solicitacoes-visita/{solicitacao_id}/reagendar", response_model=SolicitacaoVisitaResposta)
+def reagendar(
+    solicitacao_id: int,
+    dados: ReagendamentoVisita,
+    db: Session = Depends(get_db),
+    administrador: Usuario = Depends(ADMIN),
+):
+    return propor_reagendamento(db, solicitacao_id, dados, administrador)
+
+
+@router.patch("/solicitacoes-visita/{solicitacao_id}/responder-reagendamento", response_model=SolicitacaoVisitaResposta)
+def responder_a_reagendamento(
+    solicitacao_id: int,
+    dados: RespostaReagendamento,
+    db: Session = Depends(get_db),
+    cliente: Usuario = Depends(CLIENTE),
+):
+    return responder_reagendamento(db, solicitacao_id, cliente, dados.aceitar)

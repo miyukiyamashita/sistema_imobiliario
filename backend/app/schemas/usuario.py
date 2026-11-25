@@ -70,3 +70,11 @@ class UsuarioResposta(BaseModel):
     cpf: str
     perfil: str
     ativo: bool
+
+
+class UsuarioProprietarioOpcao(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+    email: EmailStr

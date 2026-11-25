@@ -1,68 +1,73 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { apiRequest } from "../services/api";
+import { useEffect, useMemo, useState } from "react";
+import { apiRequest, setUnauthorizedHandler } from "../services/api";
+import { AuthContext } from "./AuthContext";
 
-const TOKEN_KEY = "sistema_imobiliario_token";
-const AuthContext = createContext(null);
-
-export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
-  const [usuario, setUsuario] = useState(null);
-  const [carregando, setCarregando] = useState(true);
-
-  useEffect(() => {
-    let ativo = true;
-
-    async function restaurarSessao() {
-      if (!token) {
-        if (ativo) setCarregando(false);
-        return;
-      }
-
-      try {
-        const dadosUsuario = await apiRequest("/usuarios/me", {}, token);
-        if (ativo) setUsuario(dadosUsuario);
-      } catch {
-        sessionStorage.removeItem(TOKEN_KEY);
-        if (ativo) {
-          setToken(null);
-          setUsuario(null);
-        }
-      } finally {
-        if (ativo) setCarregando(false);
-      }
-    }
-
-    restaurarSessao();
-    return () => { ativo = false; };
-  }, [token]);
-
-  async function entrar(novoToken) {
-    const dadosUsuario = await apiRequest("/usuarios/me", {}, novoToken);
-    sessionStorage.setItem(TOKEN_KEY, novoToken);
-    setUsuario(dadosUsuario);
-    setToken(novoToken);
-  }
-
-  function sair() {
-    sessionStorage.removeItem(TOKEN_KEY);
-    setToken(null);
-    setUsuario(null);
-  }
-
-  const valor = useMemo(() => ({
-    token,
-    usuario,
-    carregando,
-    autenticado: Boolean(token && usuario),
-    entrar,
-    sair,
-  }), [token, usuario, carregando]);
-
-  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
+const TOKEN_KEY = "futura_imoveis_access_token";
+function limparSessao(setToken, setUsuario) {
+  sessionStorage.removeItem(TOKEN_KEY);
+  setToken(null);
+  setUsuario(null);
 }
 
-export function useAuth() {
-  const contexto = useContext(AuthContext);
-  if (!contexto) throw new Error("useAuth deve ser usado dentro de AuthProvider.");
-  return contexto;
+export function AuthProvider({ children }) {
+  const [token, setToken] = useState(null);
+  const [usuario, setUsuario] = useState(null);
+  const [inicializando, setInicializando] = useState(() =>
+    Boolean(sessionStorage.getItem(TOKEN_KEY))
+  );
+
+  useEffect(() => {
+    const tokenArmazenado = sessionStorage.getItem(TOKEN_KEY);
+    if (!tokenArmazenado) return undefined;
+
+    let ativo = true;
+    apiRequest("/usuarios/me", {}, tokenArmazenado)
+      .then((dados) => {
+        if (!ativo) return;
+        setToken(tokenArmazenado);
+        setUsuario(dados);
+      })
+      .catch(() => {
+        if (ativo) limparSessao(setToken, setUsuario);
+      })
+      .finally(() => {
+        if (ativo) setInicializando(false);
+      });
+
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => limparSessao(setToken, setUsuario));
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  async function login(accessToken) {
+    const dadosUsuario = await apiRequest("/usuarios/me", {}, accessToken);
+    sessionStorage.setItem(TOKEN_KEY, accessToken);
+    setToken(accessToken);
+    setUsuario(dadosUsuario);
+    return dadosUsuario;
+  }
+
+  function logout() {
+    limparSessao(setToken, setUsuario);
+  }
+
+  const valor = useMemo(
+    () => ({
+      token,
+      usuario,
+      perfil: usuario?.perfil || null,
+      autenticado: Boolean(token && usuario),
+      inicializando,
+      login,
+      logout,
+    }),
+    [token, usuario, inicializando]
+  );
+
+  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
 }

@@ -1,14 +1,9 @@
-import { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+﻿import { useState } from "react";
 import { apiRequest } from "../services/api";
-import { useAuth } from "../context/AuthContext";
-import Button from "../components/ui/Button";
-import Input from "../components/ui/Input";
+import { AuthShell, Field } from "../components/Layout";
+import { Icon } from "../components/Icon";
 
-function Login() {
-  const { entrar } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+function Login({ onLogin, onNavigate }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -19,32 +14,90 @@ function Login() {
     event.preventDefault();
     setMensagem("");
     setCarregando(true);
+
     try {
-      const resposta = await apiRequest("/auth/login", { method: "POST", body: { email, senha } });
-      await entrar(resposta.access_token);
-      const destino = location.state?.de;
-      navigate(destino ? `${destino.pathname}${destino.search || ""}` : "/dashboard", { replace: true });
+      const resposta = await apiRequest("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, senha }),
+      });
+
+      await onLogin(resposta.access_token);
     } catch (erro) {
-      setMensagem(erro.message);
+      setMensagem(erro.message || "Não foi possível conectar ao servidor.");
     } finally {
       setCarregando(false);
     }
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-visual"><div className="brand"><span className="brand-mark">F</span><span>Futura <small>Imóveis</small></span></div><div><h1>Gestão imobiliária <span className="auth-accent">mais inteligente.</span></h1><p>Centralize seus imóveis, mantenha sua operação organizada e tome decisões com mais agilidade.</p></div><small>© 2026 Futura Imóveis</small></section>
-      <section className="auth-form-area"><div className="card auth-card">
-        <p className="eyebrow">BEM-VINDO DE VOLTA</p><h2>Entre na sua conta</h2><p>Acesse o painel para continuar sua operação.</p>
-        {mensagem && <p className="inline-message inline-error" role="alert">{mensagem}</p>}
-        <form className="auth-form" onSubmit={realizarLogin}>
-          <Input label="E-mail" name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required autoComplete="email" />
-          <div className="field"><label htmlFor="senha">Senha</label><div className="password-wrap"><input id="senha" name="senha" type={mostrarSenha ? "text" : "password"} value={senha} onChange={(event) => setSenha(event.target.value)} required autoComplete="current-password" /><button className="password-toggle" type="button" onClick={() => setMostrarSenha(!mostrarSenha)} aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}>{mostrarSenha ? "Ocultar" : "Mostrar"}</button></div></div>
-          <Button type="submit" loading={carregando}>{carregando ? "Entrando" : "Entrar no painel"}</Button>
-        </form>
-        <p className="auth-footer">Ainda não possui uma conta? <Link to="/cadastro">Criar conta</Link></p><p className="auth-footer"><Link to="/imoveis/catalogo">Explorar catálogo público</Link></p>
-      </div></section>
-    </main>
+    <AuthShell
+      onNavigate={onNavigate}
+      title="Bem-vindo de volta"
+      subtitle="Entre para acompanhar seus imóveis, visitas e propostas."
+    >
+      <form onSubmit={realizarLogin} className="mt-8 space-y-5">
+        <Field label="E-mail">
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="input"
+            placeholder="voce@email.com"
+            required
+          />
+        </Field>
+
+        <Field label="Senha">
+          <div className="relative">
+            <input
+              id="senha"
+              type={mostrarSenha ? "text" : "password"}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className="input pr-16"
+              placeholder="Sua senha"
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setMostrarSenha(!mostrarSenha)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-blue-700"
+            >
+              {mostrarSenha ? "Ocultar" : "Mostrar"}
+            </button>
+          </div>
+        </Field>
+
+        {mensagem && (
+          <div
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-700"
+          >
+            {mensagem}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={carregando}
+          className="btn-primary h-12 w-full"
+        >
+          {carregando ? "Entrando..." : "Entrar"} <Icon name="arrow" size={18} />
+        </button>
+      </form>
+
+      <p className="mt-7 text-center text-sm text-slate-500">
+        Ainda não tem uma conta?{" "}
+        <button
+          type="button"
+          onClick={() => onNavigate("cadastro")}
+          className="font-bold text-blue-700"
+        >
+          Criar conta
+        </button>
+      </p>
+    </AuthShell>
   );
 }
 
