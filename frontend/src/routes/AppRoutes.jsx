@@ -11,6 +11,7 @@ import MeusImoveis from "../pages/MeusImoveis";
 import MinhasSolicitacoes from "../pages/MinhasSolicitacoes";
 import SolicitacoesImoveis from "../pages/SolicitacoesImoveis";
 import RotaProtegida from "./RotaProtegida";
+import { NavegacaoInterna } from "../components/Layout";
 
 function navegarPara(navigate, destino) {
   const destinos = {
@@ -91,6 +92,7 @@ function DashboardRota({ active }) {
   const { usuario, token, logout } = useAuth();
   return (
     <Dashboard
+      key={active}
       usuario={usuario}
       token={token}
       activeInicial={active}
@@ -103,10 +105,19 @@ function DashboardRota({ active }) {
   );
 }
 
-function PaginaProtegida({ Component }) {
+function PaginaProtegida({ Component, mostrarNavegacao = true }) {
   const navigate = useNavigate();
   const { token } = useAuth();
-  return <Component token={token} onNavigate={(destino) => navegarPara(navigate, destino)} />;
+  return (
+    <section className="min-h-screen bg-slate-50 p-5 lg:p-9">
+      <div className="mx-auto max-w-6xl">
+        {mostrarNavegacao && <NavegacaoInterna onNavigate={() => navigate("/dashboard")} />}
+        <div className="mt-5">
+          <Component token={token} onNavigate={(destino) => navegarPara(navigate, destino)} />
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export default function AppRoutes() {
@@ -122,11 +133,11 @@ export default function AppRoutes() {
         <Route path="/dashboard" element={<DashboardRota active="Visão Geral" />} />
       </Route>
       <Route element={<RotaProtegida perfis={["CORRETOR_ADMIN"]} />}>
-        <Route path="/gerenciar-imoveis" element={<PaginaProtegida Component={GerenciarImoveis} />} />
+        <Route path="/gerenciar-imoveis" element={<PaginaProtegida Component={GerenciarImoveis} mostrarNavegacao={false} />} />
         <Route path="/solicitacoes-imoveis" element={<PaginaProtegida Component={SolicitacoesImoveis} />} />
       </Route>
       <Route element={<RotaProtegida perfis={["PROPRIETARIO"]} />}>
-        <Route path="/anunciar-imovel" element={<PaginaProtegida Component={AnunciarImovel} />} />
+        <Route path="/anunciar-imovel" element={<PaginaProtegida Component={AnunciarImovel} mostrarNavegacao={false} />} />
         <Route path="/meus-imoveis" element={<PaginaProtegida Component={MeusImoveis} />} />
         <Route path="/minhas-solicitacoes" element={<PaginaProtegida Component={MinhasSolicitacoes} />} />
       </Route>

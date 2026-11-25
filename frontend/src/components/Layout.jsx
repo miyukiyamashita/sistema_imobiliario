@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import React, { useState } from "react";
 import houseImage from "../assets/futura-house.png";
 import { Icon } from "./Icon";
 
@@ -164,6 +164,14 @@ export function Field({ label, children, className = "" }) {
       </span>
       {children}
     </label>
+  );
+}
+
+export function NavegacaoInterna({ onNavigate, destino = "dashboard", rotulo = "Voltar ao painel" }) {
+  return (
+    <button type="button" className="text-sm font-semibold text-blue-800 hover:text-blue-950" onClick={() => onNavigate(destino)}>
+      ← {rotulo}
+    </button>
   );
 }
 

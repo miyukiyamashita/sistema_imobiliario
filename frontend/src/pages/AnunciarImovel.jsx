@@ -83,8 +83,10 @@ export default function AnunciarImovel({ token, onNavigate }) {
       await apiRequest(`/imoveis/meus/${imovelAtual.id}/solicitacoes`, { method: "POST" }, token);
       sessionStorage.removeItem(recoveryKey);
       onNavigate("solicitacoes");
+      return true;
     } catch (error) {
       setErro(error.message);
+      return false;
     } finally {
       setEnviando(false);
     }
@@ -100,8 +102,10 @@ export default function AnunciarImovel({ token, onNavigate }) {
       setImovel(resposta);
       sessionStorage.setItem(recoveryKey, JSON.stringify({ imovelId: resposta.id, fotos: [] }));
       setErro("Rascunho salvo. Você ainda precisa enviar os arquivos e clicar em \"Enviar para análise\".");
+      return true;
     } catch (error) {
       setErro(error.message);
+      return false;
     } finally {
       setEnviando(false);
     }
@@ -133,7 +137,7 @@ export default function AnunciarImovel({ token, onNavigate }) {
   return (
     <section className="space-y-5">
       <div><h2 className="text-xl font-bold text-slate-900">Anunciar meu imóvel</h2><p className="mt-1 text-sm text-slate-500">Preencha os dados e envie a solicitação para análise em uma única ação.</p></div>
-      <FormularioImovel token={token} proprietario imovel={imovel} onCancel={() => onNavigate("meus-imoveis")} onSubmitOverride={enviar} onDraftSave={salvarRascunho} submitLabel="Enviar para análise" extra={arquivos} />
+      <FormularioImovel token={token} proprietario imovel={imovel} mostrarRetorno onCancel={() => onNavigate("dashboard")} onSubmitOverride={enviar} onDraftSave={salvarRascunho} submitLabel="Enviar para análise" extra={arquivos} />
     </section>
   );
 }

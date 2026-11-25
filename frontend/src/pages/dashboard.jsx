@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+/* eslint-disable react/set-state-in-effect */
+import React, { useEffect, useState } from "react";
 import { Logo } from "../components/Layout";
 import { Icon } from "../components/Icon";
 import { apiRequest } from "../services/api";
@@ -22,6 +23,10 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
   const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
   const [erroNotificacoes, setErroNotificacoes] = useState("");
   const [resumo, setResumo] = useState({ visitas: [], propostas: [], imoveis: [] });
+
+  useEffect(() => {
+    setActive(activeInicial);
+  }, [activeInicial]);
 
   useEffect(() => {
     if (!token) return;
@@ -286,6 +291,11 @@ function Dashboard({ usuario, token, onSair, onNavigate, activeInicial = "Visão
       </header>
 
       <main className="px-5 py-7 lg:px-9 lg:py-9">
+        {active !== "Visão Geral" && (
+          <button type="button" className="mb-5 text-sm font-semibold text-blue-800 hover:text-blue-950" onClick={() => onNavigate("dashboard")}>
+            ← Voltar ao painel
+          </button>
+        )}
         {active === "Visão Geral" ? (
           <>
             <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-center">

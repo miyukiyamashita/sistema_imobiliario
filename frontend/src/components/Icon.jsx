@@ -1,4 +1,6 @@
-﻿const paths = {
+﻿import React from "react";
+
+const paths = {
   area: <><path d="M4 9V4h5M20 15v5h-5M9 20H4v-5M15 4h5v5" /><path d="M9 9h6v6H9z" /></>,
   arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
   bath: <><path d="M4 13h16v2a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-2Z" /><path d="M6 13V6a2 2 0 0 1 3.5-1.3L11 6M7 19v2M17 19v2" /></>,
